@@ -1,0 +1,28 @@
+.env
+db.sqlite3
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+# Ignore virtual environment directories
+venv/
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+# Ignore coverage reports
+coverage.xml
+*.cover
+# Ignore logs
+*.log
+# Ignore static files
+static/
+# Ignore media files
+media/
+# Ignore IDE specific files
+.idea/
+.vscode/
+# Ignore system files
+.DS_Store
+Thumbs.db
+# Ignore Python bytecode files
+*.pyc
+*.pyo
+
