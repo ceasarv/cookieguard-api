@@ -26,6 +26,11 @@ def get_base_domain(host):
 
 async def scan_site(url: str):
 	logger.info("[scan_site] Starting scan for: %s", url)
+
+	# Normalize URL — ensure it has protocol
+	if not url.startswith(("http://", "https://")):
+		url = "https://" + url
+		
 	parsed_host = urlparse(url).hostname or ""
 	result = {}
 	start_time = time.perf_counter()

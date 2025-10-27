@@ -4,21 +4,24 @@ from .models import User
 
 
 class UserAdmin(BaseUserAdmin):
-    model = User
-    list_display = ('email', 'is_staff', 'is_active')
-    list_filter = ('is_staff', 'is_active')
-    search_fields = ('email',)
-    ordering = ('email',)
-    fieldsets = (
-        (None, {'fields': ('email', 'password')}),
-        ('Permissions', {'fields': ('is_staff', 'is_active')}),
-    )
-    add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('email', 'password1', 'password2', 'is_staff', 'is_active')}
-        ),
-    )
+	model = User
+	list_display = ('email', 'is_staff', 'is_active', 'date_joined')
+	list_filter = ('is_staff', 'is_active')
+	search_fields = ('email',)
+	ordering = ('-date_joined',)
+	readonly_fields = ('date_joined', 'last_login')
+
+	fieldsets = (
+		(None, {'fields': ('email', 'password')}),
+		('Important dates', {'fields': ('last_login', 'date_joined')}),
+		('Permissions', {'fields': ('is_staff', 'is_active', 'groups', 'user_permissions')}),
+	)
+	add_fieldsets = (
+		(None, {
+			'classes': ('wide',),
+			'fields': ('email', 'password1', 'password2', 'is_staff', 'is_active'),
+		}),
+	)
 
 
 admin.site.register(User, UserAdmin)

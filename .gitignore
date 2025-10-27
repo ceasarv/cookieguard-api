@@ -25,4 +25,4 @@ Thumbs.db
 # Ignore Python bytecode files
 *.pyc
 *.pyo
-
+db.sqlite3
