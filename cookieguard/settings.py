@@ -73,7 +73,12 @@ CORS_ALLOW_HEADERS = [
 	"content-type",
 	"authorization",
 ]
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+
+ALLOWED_HOSTS = [
+	"localhost",
+	"127.0.0.1",
+	"cookieguard-api.onrender.com",
+]
 
 REST_FRAMEWORK = {
 	'DEFAULT_AUTHENTICATION_CLASSES': (
