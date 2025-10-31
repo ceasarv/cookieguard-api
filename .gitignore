@@ -26,3 +26,5 @@ Thumbs.db
 *.pyc
 *.pyo
 db.sqlite3
+/staticfiles/
+/media/

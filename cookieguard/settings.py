@@ -80,6 +80,7 @@ ALLOWED_HOSTS = [
 	"localhost",
 	"127.0.0.1",
 	"cookieguard-api.onrender.com",
+	"api.cookieguard.app"
 ]
 
 REST_FRAMEWORK = {
