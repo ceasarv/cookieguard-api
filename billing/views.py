@@ -105,7 +105,6 @@ def create_checkout_session(request):
 	trial_days = int(getattr(settings, "TRIAL_DAYS", os.getenv("TRIAL_DAYS", 14)))
 	auto_tax = bool(getattr(settings, "STRIPE_AUTOMATIC_TAX", False))
 
-	# 👇 Only include trial if the user hasn’t used one before
 	subscription_data = {
 		"metadata": {
 			"user_id": str(request.user.id),
@@ -127,6 +126,7 @@ def create_checkout_session(request):
 			automatic_tax={"enabled": auto_tax},
 			subscription_data=subscription_data,
 			customer_update={"name": "auto"},
+			payment_method_types=["card"],
 		)
 	except stripe.error.InvalidRequestError as e:
 		return Response({"error": str(e)}, status=400)
