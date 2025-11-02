@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -71,8 +72,7 @@ CORS_ALLOW_METHODS = [
 	"OPTIONS",
 ]
 
-CORS_ALLOW_HEADERS = [
-	"content-type",
+CORS_ALLOW_HEADERS = list(default_headers) + [
 	"authorization",
 ]
 
