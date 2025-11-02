@@ -107,6 +107,10 @@ def onboarding_next(request):
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def me(request):
+	import logging
+	a = logging.getLogger(__name__)
+	a.warning("🔥 /api/auth/me/ hit for user=%s", getattr(request.user, "email", None))
+
 	user = request.user
 
 	if request.method == "GET":
