@@ -63,7 +63,7 @@ def embed_script(request, embed_key: str):
 	except Domain.DoesNotExist:
 		raise Http404("Domain not found")
 
-	banners = list(domain.banners.all())
+	banners = list(domain.banners.filter(is_active=True))
 	if not banners:
 		raise Http404("No banner configured for this domain")
 

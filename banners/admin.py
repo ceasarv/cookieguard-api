@@ -4,8 +4,8 @@ from .models import Banner
 
 @admin.register(Banner)
 class BannerAdmin(admin.ModelAdmin):
-	list_display = ("id", "get_domains", "name", "position", "theme", "updated_at")
-	search_fields = ("name", "domains__url")  # ✅ use the M2M lookup
+	list_display = ("id", "get_domains", "name", "is_active", "position", "theme", "updated_at")
+	search_fields = ("name", "is_active", "domains__url")
 	list_filter = ("position", "theme")
 
 	def get_domains(self, obj):

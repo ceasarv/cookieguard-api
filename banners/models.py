@@ -5,6 +5,7 @@ from domains.models import Domain
 class Banner(models.Model):
 	domains = models.ManyToManyField(Domain, related_name="banners", blank=True)
 	name = models.CharField(max_length=255, blank=True, default="")
+	is_active = models.BooleanField(default=True)
 
 	# ---------- Overlay settings ----------
 	overlay_enabled = models.BooleanField(default=False)

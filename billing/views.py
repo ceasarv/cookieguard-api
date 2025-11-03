@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from .models import BillingProfile
+from banners.models import Banner
 
 # --- Stripe config -----------------------------------------------------------
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -204,23 +205,35 @@ def stripe_webhook(request):
 
 		profile.subscription_id = subscription["id"]
 		profile.subscription_status = subscription["status"]
-
 		end_ts = subscription.get("trial_end") or subscription.get("current_period_end")
 		profile.current_period_end = (
 			datetime.fromtimestamp(end_ts, tz=dt_timezone.utc) if end_ts else None
 		)
-
 		profile.cancel_at_period_end = bool(subscription.get("cancel_at_period_end", False))
 
 		items = subscription.get("items", {}).get("data", [])
 		if items and items[0].get("price", {}).get("lookup_key"):
 			profile.price_lookup_key = items[0]["price"]["lookup_key"]
-
-		# 👇 If this subscription had a trial, mark it as used forever
 		if subscription.get("trial_end"):
 			profile.trial_used = True
 
 		profile.save()
+
+		# --- Banner auto-pause / re-activate logic -------------------------
+		subscription_status = subscription.get("status", "").lower()
+		cancel_at_period_end = bool(subscription.get("cancel_at_period_end", False))
+		end_ts = subscription.get("current_period_end") or subscription.get("trial_end")
+		has_time_left = (
+				end_ts and datetime.fromtimestamp(end_ts, tz=timezone.utc) > timezone.now()
+		)
+
+		user = profile.user
+		# Pause banners when truly ended
+		if subscription_status in ("canceled", "unpaid", "inactive") and not has_time_left:
+			Banner.objects.filter(domains__user=user, is_active=True).update(is_active=False)
+		# Re-enable if subscription revived
+		elif subscription_status in ("active", "trialing") and has_time_left:
+			Banner.objects.filter(domains__user=user, is_active=False).update(is_active=True)
 
 	if type_ == "checkout.session.completed":
 		# Expand to get subscription details
