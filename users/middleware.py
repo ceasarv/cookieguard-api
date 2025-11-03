@@ -7,6 +7,8 @@ class BlockedUserMiddleware:
 
 	def __call__(self, request):
 		user = getattr(request, "user", None)
+		if user and user.is_authenticated:
+			print(f"[BLOCK TEST] {user.email} blocked={user.is_blocked}")
 		if user and user.is_authenticated and getattr(user, "is_blocked", False):
 			return JsonResponse(
 				{"detail": "Your account has been suspended. Please contact support."},
