@@ -27,6 +27,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 	is_staff = models.BooleanField(default=False)
 	date_joined = models.DateTimeField(default=timezone.now, editable=False)
 	on_boarding_step = models.SmallIntegerField(default=0)
+	is_blocked = models.BooleanField(default=False, help_text="Block account and disable access to all services.")
 
 	objects = UserManager()
 
