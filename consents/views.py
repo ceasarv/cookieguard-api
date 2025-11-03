@@ -94,7 +94,6 @@ def log_consent(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
 def list_consents(request):
 	"""
 	Returns consent logs for all domains owned by the logged-in user.

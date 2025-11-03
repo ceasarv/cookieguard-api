@@ -31,7 +31,6 @@ def _get_owned(request, **kwargs) -> Domain:
 
 
 @api_view(["GET", "POST"])
-@permission_classes([IsAuthenticated])
 def domains_list(request):
 	if request.method == "GET":
 		qs = Domain.objects.filter(user=request.user).order_by("-created_at")
@@ -56,7 +55,6 @@ def domains_list(request):
 
 
 @api_view(["GET", "PATCH", "DELETE"])
-@permission_classes([IsAuthenticated])
 def domain_detail(request, id):
 	d = _get_owned(request, id=id)
 
@@ -106,7 +104,6 @@ def domain_detail(request, id):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def rotate_key(request, id):
 	d = _get_owned(request, id=id)
 	d.embed_key = secrets.token_urlsafe(24)[:40]
@@ -115,7 +112,6 @@ def rotate_key(request, id):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def run_scan(request, id):
 	d = _get_owned(request, id=id)
 	d.last_scan_at = timezone.now()

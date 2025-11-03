@@ -78,7 +78,6 @@ def _serialize_user(user):
 # ---------- views ----------
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def onboarding_next(request):
 	if not has_field(User, "on_boarding_step"):
 		return Response({"detail": "User model has no 'on_boarding_step' field."}, status=400)
@@ -105,7 +104,6 @@ def onboarding_next(request):
 
 
 @api_view(["GET", "PATCH"])
-@permission_classes([IsAuthenticated])
 def me(request):
 	user = request.user
 

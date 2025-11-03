@@ -63,7 +63,6 @@ def _get_urls_or_503():
 
 # --- API: Create Checkout Session -------------------------------------------
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def create_checkout_session(request):
 	"""
 	Body: { "plan": "starter" | "pro" }
@@ -143,7 +142,6 @@ def create_checkout_session(request):
 
 # --- API: Billing Portal -----------------------------------------------------
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def create_billing_portal_session(request):
 	"""Creates a Stripe Billing Portal session so users can manage payment methods/cancel."""
 	try:
@@ -291,7 +289,6 @@ def public_pricing(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
 def my_billing(request):
 	try:
 		profile = BillingProfile.objects.get(user=request.user)
@@ -358,7 +355,6 @@ def my_billing(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
 def cancel_subscription(request):
 	"""
 	Cancels at period end (works for trials & active subs).
