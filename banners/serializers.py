@@ -28,7 +28,10 @@ class BannerSerializer(serializers.ModelSerializer):
 			# Toggles
 			"has_reject_button",
 			"show_preferences_button",
-			"show_cookieguard_logo",  # ✅ NEW
+			"show_cookieguard_logo",
+
+			# NEW: active state
+			"is_active",  # ✅ Added this line
 
 			# Copy
 			"title",
@@ -50,7 +53,7 @@ class BannerSerializer(serializers.ModelSerializer):
 			"prefs_text_color",
 			"prefs_bg_color",
 
-			# ✅ Button border settings
+			# Button border settings
 			"accept_border_color",
 			"accept_border_width_px",
 			"accept_border_radius_px",
