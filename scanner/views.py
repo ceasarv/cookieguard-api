@@ -10,6 +10,8 @@ from billing.permissions import HasPaidPlan
 from celery.result import AsyncResult
 import json, os, resend
 
+from users.permissions import NotBlocked
+
 
 @sync_and_async_middleware
 @csrf_exempt
@@ -85,7 +87,7 @@ async def scan_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, HasPaidPlan])
+@permission_classes([IsAuthenticated, NotBlocked, HasPaidPlan])
 def trigger_scan(request):
 	data = request.data or {}
 	url = data.get("url")

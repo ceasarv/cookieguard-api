@@ -11,7 +11,6 @@ from django.conf import settings
 
 class BannerListCreateView(generics.ListCreateAPIView):
 	serializer_class = BannerSerializer
-	permission_classes = [permissions.IsAuthenticated]
 
 	def get_queryset(self):
 		# Banners where at least one of the linked domains belongs to the user
@@ -44,14 +43,12 @@ class BannerListCreateView(generics.ListCreateAPIView):
 			next_num = max(numbers) + 1 if numbers else 1
 			name = f"Banner {next_num:02d}"
 
-		# Save banner with the resolved name
 		banner = serializer.save(name=name)
-		banner.domains.set(domains)  # ✅ assign M2M
+		banner.domains.set(domains)
 
 
 class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = BannerSerializer
-	permission_classes = [permissions.IsAuthenticated]
 
 	def get_queryset(self):
 		return Banner.objects.filter(domains__user=self.request.user).distinct()
