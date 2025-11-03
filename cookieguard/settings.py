@@ -55,7 +55,6 @@ MIDDLEWARE = [
 	"django.middleware.common.CommonMiddleware",
 	"django.middleware.csrf.CsrfViewMiddleware",
 	"django.contrib.auth.middleware.AuthenticationMiddleware",
-	"users.middleware.BlockedUserMiddleware",
 	"django.contrib.messages.middleware.MessageMiddleware",
 	"django.middleware.clickjacking.XFrameOptionsMiddleware",
 	"billing.middleware.BillingAccessMiddleware",
@@ -92,6 +91,7 @@ REST_FRAMEWORK = {
 	),
 	"DEFAULT_PERMISSION_CLASSES": (
 		"rest_framework.permissions.IsAuthenticated",
+		"users.permissions.NotBlocked",
 	),
 	"DEFAULT_RENDERER_CLASSES": (
 		"rest_framework.renderers.JSONRenderer",
