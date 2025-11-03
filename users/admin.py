@@ -14,7 +14,7 @@ class UserAdmin(BaseUserAdmin):
 	fieldsets = (
 		(None, {'fields': ('email', 'password')}),
 		('Important dates', {'fields': ('last_login', 'date_joined')}),
-		('Is Blocked', {'fields': 'is_blocked'}),
+		('Is Blocked', {'fields': ('is_blocked',)}),
 		('Permissions', {'fields': ('is_staff', 'is_active', 'groups', 'user_permissions')}),
 	)
 	add_fieldsets = (
