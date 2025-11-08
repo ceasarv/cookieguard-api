@@ -60,6 +60,11 @@ def embed_script(request, embed_key: str):
 	except Domain.DoesNotExist:
 		raise Http404("Domain not found")
 
+	# Verify user has an active subscription
+	user = domain.user
+	if not getattr(user, "has_active_subscription", False):
+		raise Http404("Inactive or free account — banner disabled")
+
 	banners = list(domain.banners.filter(is_active=True))
 	if not banners:
 		raise Http404("No banner configured for this domain")
