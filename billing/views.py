@@ -1,10 +1,10 @@
 import os
 import stripe
+from django.utils import timezone
 from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -233,7 +233,7 @@ def stripe_webhook(request):
 			subscription_status = subscription.get("status", "").lower()
 			end_ts = subscription.get("current_period_end") or subscription.get("trial_end")
 			has_time_left = (
-					end_ts and datetime.fromtimestamp(end_ts, tz=timezone.utc) > timezone.now()
+					end_ts and datetime.fromtimestamp(end_ts, tz=dt_timezone.utc) > timezone.now()
 			)
 
 			user = profile.user
@@ -392,7 +392,8 @@ def cancel_subscription(request):
 		profile.cancel_at_period_end = True
 		end_ts = sub.get("current_period_end")
 		profile.current_period_end = (
-			datetime.fromtimestamp(end_ts, tz=timezone.utc) if end_ts else profile.current_period_end
+			datetime.fromtimestamp(end_ts, tz=dt_timezone.utc)
+			if end_ts else profile.current_period_end
 		)
 		profile.subscription_status = sub.get("status", profile.subscription_status)
 		# lookup key may be in items
