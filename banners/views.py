@@ -56,24 +56,31 @@ class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 def embed_script(request, embed_key: str):
-	try:
-		domain = Domain.objects.get(embed_key=embed_key)
-	except Domain.DoesNotExist:
-		log.warning(f"[EmbedScript] ❌ Domain not found for key={embed_key}")
+	def _js(msg):
+		"""Return small JS response with a visible console.warn."""
 		return HttpResponse(
-			"// CookieGuard: domain not found\n",
+			f'console.warn("[CookieGuard] {msg}");',
 			content_type="application/javascript",
 			status=200,
 		)
 
+	try:
+		domain = Domain.objects.get(embed_key=embed_key)
+	except Domain.DoesNotExist:
+		log.warning(f"[EmbedScript] ❌ Domain not found for key={embed_key}")
+		return _js("Domain not found — check your embed key.")
+
 	user = domain.user
 	if not user:
-		log.warning(f"[EmbedScript] ❌ Domain {domain.id} has no associated user")
-		return HttpResponse("// CookieGuard: no user assigned\n", content_type="application/javascript")
+		log.warning(f"[EmbedScript] ❌ Domain {domain.id} has no user.")
+		return _js("No user associated with this domain.")
 
+	# ✅ subscription check
 	has_sub = getattr(user, "has_active_subscription", None)
 	if not has_sub:
 		log.warning(f"[EmbedScript] ⚠️ User {user.email} has_active_subscription={has_sub!r}")
+
+		# optional: show billing info for debugging
 		try:
 			from billing.models import BillingProfile
 			bp = BillingProfile.objects.filter(user=user).first()
@@ -83,48 +90,118 @@ def embed_script(request, embed_key: str):
 					f"ends={bp.current_period_end}, cancel={bp.cancel_at_period_end}"
 				)
 			else:
-				log.warning("[EmbedScript] No BillingProfile found for user")
+				log.warning("[EmbedScript] No BillingProfile found for user.")
 		except Exception as e:
 			log.error(f"[EmbedScript] BillingProfile lookup failed: {e}")
 
-		return HttpResponse("// CookieGuard: inactive subscription\n", content_type="application/javascript")
+		return _js("Banner disabled — inactive or free account.")
 
 	banners = list(domain.banners.filter(is_active=True))
 	if not banners:
-		log.warning(f"[EmbedScript] ⚠️ Domain {domain.id} has no active banners")
-		return HttpResponse("// CookieGuard: no active banner\n", content_type="application/javascript")
+		log.warning(f"[EmbedScript] ⚠️ Domain {domain.id} has no active banners.")
+		return _js("No active banner configured for this domain.")
 
 	banner = random.choice(banners)
 	env = getattr(settings, "DJANGO_ENV", "production")
 	API_URL = (
 		"http://127.0.0.1:8000/api/consents/create/"
 		if env == "development"
-		else "https://api.cookieguard.app/api/consents/create/"
+		else "https://cookieguard.app/api/consents/create/"
 	)
 
-	# --- Build the working banner JS ---
+	reject_button_html = (
+		f"<button class='cg-btn cg-reject'>{banner.reject_text}</button>"
+		if banner.has_reject_button else ""
+	)
+	prefs_button_html = (
+		f"<button class='cg-btn cg-prefs'>{banner.prefs_text}</button>"
+		if banner.show_preferences_button else ""
+	)
+
 	html = f"""
         <div class="cg-title">{banner.title}</div>
         <div class="cg-desc">{banner.description}</div>
         <div class="cg-buttons">
             <button class="cg-btn cg-accept">{banner.accept_text}</button>
+            {reject_button_html}
+            {prefs_button_html}
         </div>
     """
+
 	cfg = {
 		"id": banner.id,
 		"version": banner.version,
 		"title": banner.title,
 		"description": banner.description,
+		"accept_text": banner.accept_text,
+		"reject_text": banner.reject_text,
+		"prefs_text": banner.prefs_text,
+		"has_reject_button": banner.has_reject_button,
+		"show_preferences_button": banner.show_preferences_button,
+		"background_color": banner.background_color,
+		"border_color": banner.border_color,
+		"border_width_px": banner.border_width_px,
+		"border_radius_px": banner.border_radius_px,
+		"accept_bg_color": banner.accept_bg_color,
+		"accept_text_color": banner.accept_text_color,
+		"reject_bg_color": banner.reject_bg_color,
+		"reject_text_color": banner.reject_text_color,
+		"prefs_bg_color": banner.prefs_bg_color,
+		"prefs_text_color": banner.prefs_text_color,
+		"padding_x_px": banner.padding_x_px,
+		"padding_y_px": banner.padding_y_px,
+		"spacing_px": banner.spacing_px,
+		"text_align": banner.text_align,
+		"z_index": banner.z_index,
+		"width": banner.width or "",
+		"height": banner.height or "",
 	}
 
 	js = f"""
-    (function(){{
-        console.log("[CookieGuard] Banner loaded for {domain.url}");
+    (function() {{
+        console.log("[CookieGuard] ✅ Banner loaded for {domain.url}");
         const cfg = {json.dumps(cfg)};
+        const EMBED_KEY = "{embed_key}";
         const API_URL = "{API_URL}";
-        // your normal banner logic here...
-    }})();
-    """
 
-	log.info(f"[EmbedScript] ✅ Served banner for {domain.url} ({user.email})")
+        // simple consent logging
+        function logConsent(choice) {{
+            fetch(API_URL, {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{
+                    embed_key: EMBED_KEY,
+                    banner_id: cfg.id,
+                    banner_version: cfg.version,
+                    choice
+                }})
+            }})
+            .then(r => r.json())
+            .then(d => console.log("[CookieGuard] consent logged", d))
+            .catch(err => console.warn("[CookieGuard] consent log failed", err));
+        }}
+
+        // minimal demo banner
+        const host = document.createElement("div");
+        host.style.position = "fixed";
+        host.style.bottom = "20px";
+        host.style.left = "20px";
+        host.style.background = cfg.background_color || "#222";
+        host.style.color = "#fff";
+        host.style.padding = "10px 16px";
+        host.style.borderRadius = "8px";
+        host.style.fontFamily = "system-ui,sans-serif";
+        host.style.zIndex = cfg.z_index || 9999;
+        host.innerHTML = `<div>{banner.title}</div>
+            <p style="font-size:0.9rem">{banner.description}</p>
+            <button id="cg-accept" style="background:{banner.accept_bg_color};color:{banner.accept_text_color};
+                border:none;border-radius:6px;padding:6px 12px;cursor:pointer">{banner.accept_text}</button>`;
+        document.body.appendChild(host);
+        document.getElementById("cg-accept").onclick = () => {{
+            logConsent("accept_all");
+            host.remove();
+        }};
+    }})();"""
+
+	log.info(f"[EmbedScript] ✅ Served active banner for {domain.url} (user={user.email})")
 	return HttpResponse(js, content_type="application/javascript")
