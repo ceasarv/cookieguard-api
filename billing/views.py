@@ -12,7 +12,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import BillingProfile
-from banners.models import Banner
+import logging
+
+log = logging.getLogger(__name__)
 
 # --- Stripe config -----------------------------------------------------------
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -183,74 +185,88 @@ def stripe_webhook(request):
 		event = stripe.Webhook.construct_event(
 			payload=payload, sig_header=sig_header, secret=wh_secret
 		)
-	except stripe.error.SignatureVerificationError:
+	except stripe.error.SignatureVerificationError as e:
+		log.error("❌ Stripe signature error: %s", e)
 		return Response(status=400)
-	except ValueError:
+	except ValueError as e:
+		log.error("❌ Invalid payload: %s", e)
 		return Response(status=400)
 
-	# Handle events
-	type_ = event["type"]
-	data = event["data"]["object"]
+	try:
+		type_ = event["type"]
+		data = event["data"]["object"]
+		log.info(f"⚡ Received Stripe event: {type_}")
 
-	# Helper to update profile by subscription
-	def _update_profile_from_sub(subscription):
-		customer_id = subscription["customer"]
-		try:
-			profile = BillingProfile.objects.get(stripe_customer_id=customer_id)
-		except BillingProfile.DoesNotExist:
-			return
+		def _update_profile_from_sub(subscription):
+			log.info("🧩 Updating profile for sub: %s", subscription.get("id"))
+			customer_id = subscription["customer"]
+			from billing.models import BillingProfile
+			try:
+				profile = BillingProfile.objects.get(stripe_customer_id=customer_id)
+			except BillingProfile.DoesNotExist:
+				log.warning("⚠️ No BillingProfile found for customer %s", customer_id)
+				return
 
-		profile.subscription_id = subscription["id"]
-		profile.subscription_status = subscription["status"]
-		end_ts = subscription.get("trial_end") or subscription.get("current_period_end")
-		profile.current_period_end = (
-			datetime.fromtimestamp(end_ts, tz=dt_timezone.utc) if end_ts else None
-		)
-		profile.cancel_at_period_end = bool(subscription.get("cancel_at_period_end", False))
+			profile.subscription_id = subscription["id"]
+			profile.subscription_status = subscription["status"]
 
-		items = subscription.get("items", {}).get("data", [])
-		if items and items[0].get("price", {}).get("lookup_key"):
-			profile.price_lookup_key = items[0]["price"]["lookup_key"]
-		if subscription.get("trial_end"):
-			profile.trial_used = True
+			end_ts = subscription.get("trial_end") or subscription.get("current_period_end")
+			if end_ts:
+				from datetime import datetime, timezone as dt_timezone
+				profile.current_period_end = datetime.fromtimestamp(end_ts, tz=dt_timezone.utc)
+			else:
+				profile.current_period_end = None
 
-		profile.save()
+			profile.cancel_at_period_end = bool(subscription.get("cancel_at_period_end", False))
 
-		# --- Banner auto-pause / re-activate logic -------------------------
-		subscription_status = subscription.get("status", "").lower()
-		cancel_at_period_end = bool(subscription.get("cancel_at_period_end", False))
-		end_ts = subscription.get("current_period_end") or subscription.get("trial_end")
-		has_time_left = (
-				end_ts and datetime.fromtimestamp(end_ts, tz=timezone.utc) > timezone.now()
-		)
+			items = subscription.get("items", {}).get("data", [])
+			if items and items[0].get("price", {}).get("lookup_key"):
+				profile.price_lookup_key = items[0]["price"]["lookup_key"]
+			if subscription.get("trial_end"):
+				profile.trial_used = True
 
-		user = profile.user
-		# Pause banners when truly ended
-		if subscription_status in ("canceled", "unpaid", "inactive") and not has_time_left:
-			Banner.objects.filter(domains__user=user, is_active=True).update(is_active=False)
-		# Re-enable if subscription revived
-		elif subscription_status in ("active", "trialing") and has_time_left:
-			Banner.objects.filter(domains__user=user, is_active=False).update(is_active=True)
+			profile.save()
+			log.info("✅ Saved BillingProfile for %s", customer_id)
 
-	if type_ == "checkout.session.completed":
-		# Expand to get subscription details
-		session = stripe.checkout.Session.retrieve(data["id"], expand=["subscription"])
-		subscription = session.get("subscription")
-		if isinstance(subscription, dict):
-			_update_profile_from_sub(subscription)
+			# Toggle banners
+			from banners.models import Banner
+			subscription_status = subscription.get("status", "").lower()
+			end_ts = subscription.get("current_period_end") or subscription.get("trial_end")
+			has_time_left = (
+					end_ts and datetime.fromtimestamp(end_ts, tz=timezone.utc) > timezone.now()
+			)
 
-	elif type_ in (
-			"customer.subscription.created",
-			"customer.subscription.updated",
-			"customer.subscription.deleted",
-	):
-		_update_profile_from_sub(data)
+			user = profile.user
+			if subscription_status in ("canceled", "unpaid", "inactive") and not has_time_left:
+				Banner.objects.filter(domains__user=user, is_active=True).update(is_active=False)
+				log.info("⏸️ Paused banners for user %s", user.email)
+			elif subscription_status in ("active", "trialing") and has_time_left:
+				Banner.objects.filter(domains__user=user, is_active=False).update(is_active=True)
+				log.info("▶️ Re-enabled banners for user %s", user.email)
 
-	elif type_ == "invoice.payment_failed":
-		sub = data.get("subscription")
-		if sub:
-			sub_obj = stripe.Subscription.retrieve(sub)
-			_update_profile_from_sub(sub_obj)
+		# -- Event routing --
+		if type_ == "checkout.session.completed":
+			session = stripe.checkout.Session.retrieve(data["id"], expand=["subscription"])
+			sub = session.get("subscription")
+			if isinstance(sub, dict):
+				_update_profile_from_sub(sub)
+
+		elif type_ in (
+				"customer.subscription.created",
+				"customer.subscription.updated",
+				"customer.subscription.deleted",
+		):
+			_update_profile_from_sub(data)
+
+		elif type_ == "invoice.payment_failed":
+			sub = data.get("subscription")
+			if sub:
+				sub_obj = stripe.Subscription.retrieve(sub)
+				_update_profile_from_sub(sub_obj)
+
+	except Exception as e:
+		log.exception("🔥 Stripe webhook failed: %s", e)
+		return Response(status=500)
 
 	return Response(status=200)
 
