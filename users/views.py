@@ -157,7 +157,7 @@ def register(request):
 	if getattr(settings, "ENV", "").lower() == "production":
 		try:
 			resend.api_key = os.environ.get("RESEND_API_KEY")
-			sender_email = "support@cookieguard.app"
+			sender_email = "support@resend.dev"
 			receiver_email = os.environ.get("EMAIL_RECEIVER")
 
 			subject = f"[New Signup] {user.email}"
@@ -272,7 +272,7 @@ def google_login(request):
 		try:
 			import os, resend
 			resend.api_key = os.environ.get("RESEND_API_KEY")
-			sender_email = "support@cookieguard.app"
+			sender_email = "support@resend.dev"
 			receiver_email = os.environ.get("EMAIL_RECEIVER")
 
 			subject = f"[New Google Signup] {user.email}"
