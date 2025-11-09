@@ -6,6 +6,7 @@ from .serializers import BannerSerializer
 from domains.models import Domain
 from django.conf import settings
 import logging, json, random
+from billing.models import BillingProfile
 
 log = logging.getLogger(__name__)
 
@@ -56,14 +57,15 @@ class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 def embed_script(request, embed_key: str):
-	def _js(msg):
-		"""Return small JS response with a visible console.warn."""
+	def _js(msg: str):
+		"""Return JS with a visible console warning."""
 		return HttpResponse(
 			f'console.warn("[CookieGuard] {msg}");',
 			content_type="application/javascript",
 			status=200,
 		)
 
+	# --- Lookup domain by embed key ---
 	try:
 		domain = Domain.objects.get(embed_key=embed_key)
 	except Domain.DoesNotExist:
@@ -75,33 +77,35 @@ def embed_script(request, embed_key: str):
 		log.warning(f"[EmbedScript] ❌ Domain {domain.id} has no user.")
 		return _js("No user associated with this domain.")
 
-	# ✅ subscription check
-	has_sub = getattr(user, "has_active_subscription", None)
-	if not has_sub:
-		log.warning(f"[EmbedScript] ⚠️ User {user.email} has_active_subscription={has_sub!r}")
+	# --- Check BillingProfile ---
+	try:
+		profile = BillingProfile.objects.filter(user=user).first()
+	except Exception as e:
+		log.error(f"[EmbedScript] BillingProfile lookup failed for {user.email}: {e}")
+		return _js("Billing profile lookup failed.")
 
-		# optional: show billing info for debugging
-		try:
-			from billing.models import BillingProfile
-			bp = BillingProfile.objects.filter(user=user).first()
-			if bp:
-				log.warning(
-					f"[EmbedScript] BillingProfile: status={bp.subscription_status}, "
-					f"ends={bp.current_period_end}, cancel={bp.cancel_at_period_end}"
-				)
-			else:
-				log.warning("[EmbedScript] No BillingProfile found for user.")
-		except Exception as e:
-			log.error(f"[EmbedScript] BillingProfile lookup failed: {e}")
+	if not profile:
+		log.warning(f"[EmbedScript] ⚠️ No BillingProfile found for {user.email}")
+		return _js("No billing profile found — user not subscribed.")
 
-		return _js("Banner disabled — inactive or free account.")
+	sub_status = (profile.subscription_status or "").lower()
+	if sub_status not in ("active", "trialing"):
+		log.warning(
+			f"[EmbedScript] ⚠️ Inactive subscription for {user.email} (status={sub_status})"
+		)
+		return _js(f"Banner disabled — subscription status: {sub_status or 'unknown'}")
 
+	log.info(f"[EmbedScript] ✅ Valid subscription for {user.email} (status={sub_status})")
+
+	# --- Fetch active banners ---
 	banners = list(domain.banners.filter(is_active=True))
 	if not banners:
 		log.warning(f"[EmbedScript] ⚠️ Domain {domain.id} has no active banners.")
 		return _js("No active banner configured for this domain.")
 
 	banner = random.choice(banners)
+
+	# --- Environment-based API URL ---
 	env = getattr(settings, "DJANGO_ENV", "production")
 	API_URL = (
 		"http://127.0.0.1:8000/api/consents/create/"
@@ -109,6 +113,7 @@ def embed_script(request, embed_key: str):
 		else "https://cookieguard.app/api/consents/create/"
 	)
 
+	# --- Build banner HTML ---
 	reject_button_html = (
 		f"<button class='cg-btn cg-reject'>{banner.reject_text}</button>"
 		if banner.has_reject_button else ""
@@ -128,6 +133,7 @@ def embed_script(request, embed_key: str):
         </div>
     """
 
+	# --- JS config payload ---
 	cfg = {
 		"id": banner.id,
 		"version": banner.version,
@@ -157,6 +163,7 @@ def embed_script(request, embed_key: str):
 		"height": banner.height or "",
 	}
 
+	# --- Inject JS ---
 	js = f"""
     (function() {{
         console.log("[CookieGuard] ✅ Banner loaded for {domain.url}");
@@ -164,7 +171,6 @@ def embed_script(request, embed_key: str):
         const EMBED_KEY = "{embed_key}";
         const API_URL = "{API_URL}";
 
-        // simple consent logging
         function logConsent(choice) {{
             fetch(API_URL, {{
                 method: "POST",
@@ -173,15 +179,15 @@ def embed_script(request, embed_key: str):
                     embed_key: EMBED_KEY,
                     banner_id: cfg.id,
                     banner_version: cfg.version,
-                    choice
-                }})
+                    choice: choice,
+                }}),
             }})
             .then(r => r.json())
             .then(d => console.log("[CookieGuard] consent logged", d))
             .catch(err => console.warn("[CookieGuard] consent log failed", err));
         }}
 
-        // minimal demo banner
+        // 🧱 Basic banner rendering
         const host = document.createElement("div");
         host.style.position = "fixed";
         host.style.bottom = "20px";
@@ -192,16 +198,24 @@ def embed_script(request, embed_key: str):
         host.style.borderRadius = "8px";
         host.style.fontFamily = "system-ui,sans-serif";
         host.style.zIndex = cfg.z_index || 9999;
-        host.innerHTML = `<div>{banner.title}</div>
-            <p style="font-size:0.9rem">{banner.description}</p>
-            <button id="cg-accept" style="background:{banner.accept_bg_color};color:{banner.accept_text_color};
-                border:none;border-radius:6px;padding:6px 12px;cursor:pointer">{banner.accept_text}</button>`;
+        host.innerHTML = `
+            <div style="font-weight:700;margin-bottom:4px;">{banner.title}</div>
+            <p style="font-size:0.9rem;margin-bottom:8px;">{banner.description}</p>
+            <button id="cg-accept" style="
+                background:{banner.accept_bg_color};
+                color:{banner.accept_text_color};
+                border:none;border-radius:6px;
+                padding:6px 12px;
+                cursor:pointer;">
+                {banner.accept_text}
+            </button>`;
         document.body.appendChild(host);
+
         document.getElementById("cg-accept").onclick = () => {{
             logConsent("accept_all");
             host.remove();
         }};
     }})();"""
 
-	log.info(f"[EmbedScript] ✅ Served active banner for {domain.url} (user={user.email})")
+	log.info(f"[EmbedScript] ✅ Served banner for {domain.url} (user={user.email})")
 	return HttpResponse(js, content_type="application/javascript")
