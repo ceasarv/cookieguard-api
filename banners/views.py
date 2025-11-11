@@ -73,89 +73,92 @@ def embed_script(request, embed_key: str):
 	if not user:
 		return _js("No user associated with this domain.")
 
+	# check subscription
 	profile = BillingProfile.objects.filter(user=user).first()
 	if not profile or (profile.subscription_status or "").lower() not in ("active", "trialing"):
-		return _js("Inactive or free account — banner disabled.")
+		return _js("// CookieGuard: inactive or free account")
 
 	banner = domain.banners.filter(is_active=True).first()
 	if not banner:
-		return _js("No active banner configured for this domain.")
+		return _js("// CookieGuard: no active banner for this domain")
 
-	# 🔒 unique namespace ID
-	unique_id = f"cg-{hashlib.md5(embed_key.encode()).hexdigest()[:6]}"
-
-	env = getattr(settings, "DJANGO_ENV", "production")
 	API_URL = (
 		"http://127.0.0.1:8000/api/consents/create/"
-		if env == "development"
-		else "https://api.cookieguard.app/api/consents/create/"
+		if getattr(settings, "DJANGO_ENV", "production") == "development"
+		else "https://cookieguard.app/api/consents/create/"
 	)
 
-	# optional hosted stylesheet (so you can push design tweaks later)
-	base_css_url = (
-		"http://127.0.0.1:8000/static/banner-base.css"
-		if env == "development"
-		else "https://api.cookieguard.app/static/banner-base.css"
-	)
+	text_color = getattr(banner, "text_color", "#111827")  # fallback if not added yet
 
-	js = f"""
-    (function() {{
-        const ROOT_ID = "{unique_id}";
-        const API_URL = "{API_URL}";
-        const EMBED_KEY = "{embed_key}";
-        const cfg = {json.dumps({
+	cfg = {
+		"id": banner.id,
+		"version": banner.version,
 		"title": banner.title,
 		"description": banner.description,
 		"accept_text": banner.accept_text,
-		"accept_bg": banner.accept_bg_color,
-		"accept_color": banner.accept_text_color,
-		"bg": banner.background_color,
-		"z": banner.z_index,
-	})};
+		"reject_text": banner.reject_text,
+		"prefs_text": banner.prefs_text,
+		"background_color": banner.background_color,
+		"text_color": text_color,
+		"accept_bg_color": banner.accept_bg_color,
+		"accept_text_color": banner.accept_text_color,
+		"reject_bg_color": banner.reject_bg_color,
+		"reject_text_color": banner.reject_text_color,
+		"prefs_bg_color": banner.prefs_bg_color,
+		"prefs_text_color": banner.prefs_text_color,
+	}
 
-        // inject stylesheet
-        if (!document.getElementById(ROOT_ID + "-style")) {{
-            const link = document.createElement("link");
-            link.id = ROOT_ID + "-style";
-            link.rel = "stylesheet";
-            link.href = "{base_css_url}";
-            document.head.appendChild(link);
-        }}
+	js = f"""
+	(function() {{
+		console.log("[CookieGuard] ✅ Banner loaded for {domain.url}");
+		const cfg = {json.dumps(cfg)};
+		const EMBED_KEY = "{embed_key}";
+		const API_URL = "{API_URL}";
 
-        // render container
-        const root = document.createElement("div");
-        root.id = ROOT_ID;
-        root.className = "cookieguard-banner";
-        root.style.position = "fixed";
-        root.style.bottom = "20px";
-        root.style.left = "20px";
-        root.style.zIndex = cfg.z || 9999;
-        document.body.appendChild(root);
+		// 🧩 inject base CSS
+		const css = document.createElement("link");
+		css.rel = "stylesheet";
+		css.href = "https://api.cookieguard.app/static/banner-base.css";
+		css.crossOrigin = "anonymous";
+		document.head.appendChild(css);
 
-        // build banner HTML
-        root.innerHTML = `
-            <div class="cg-wrap" style="background:${{cfg.bg}};color:#fff;padding:12px 18px;border-radius:10px;max-width:480px;">
-                <div class="cg-title">${{cfg.title}}</div>
-                <div class="cg-desc" style="font-size:.9rem;margin-bottom:10px;">${{cfg.description}}</div>
-                <button class="cg-btn cg-accept" style="background:${{cfg.accept_bg}};color:${{cfg.accept_color}};padding:8px 14px;border-radius:6px;">${{cfg.accept_text}}</button>
-            </div>
-        `;
+		function logConsent(choice) {{
+			fetch(API_URL, {{
+				method: "POST",
+				headers: {{ "Content-Type": "application/json" }},
+				body: JSON.stringify({{
+					embed_key: EMBED_KEY,
+					banner_id: cfg.id,
+					banner_version: cfg.version,
+					choice: choice,
+				}}),
+			}})
+			.then(r => r.json())
+			.then(d => console.log("[CookieGuard] consent logged", d))
+			.catch(err => console.warn("[CookieGuard] consent log failed", err));
+		}}
 
-        // log consent
-        const btn = root.querySelector(".cg-accept");
-        btn.addEventListener("click", () => {{
-            fetch(API_URL, {{
-                method: "POST",
-                headers: {{ "Content-Type": "application/json" }},
-                body: JSON.stringify({{
-                    embed_key: EMBED_KEY,
-                    banner_id: {banner.id},
-                    banner_version: {banner.version},
-                    choice: "accept_all",
-                }}),
-            }});
-            root.remove();
-        }});
-    }})();"""
+		// Render banner
+		const host = document.createElement("div");
+		host.className = "cg-banner";
+		host.innerHTML = `
+			<div class="cg-content" style="color:${{cfg.text_color}};background:${{cfg.background_color}}">
+				<h3 class="cg-title">${{cfg.title}}</h3>
+				<p class="cg-desc">${{cfg.description}}</p>
+				<div class="cg-buttons">
+					<button class="cg-btn cg-accept" style="background:${{cfg.accept_bg_color}};color:${{cfg.accept_text_color}}">
+						${{cfg.accept_text}}
+					</button>
+					<button class="cg-btn cg-reject" style="background:${{cfg.reject_bg_color}};color:${{cfg.reject_text_color}}">
+						${{cfg.reject_text}}
+					</button>
+				</div>
+			</div>`;
+
+		document.body.appendChild(host);
+		host.querySelector(".cg-accept").addEventListener("click", () => logConsent("accept_all"));
+		host.querySelector(".cg-reject").addEventListener("click", () => logConsent("reject_all"));
+	}})();
+	"""
 
 	return HttpResponse(js, content_type="application/javascript")

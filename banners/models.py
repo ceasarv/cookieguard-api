@@ -45,6 +45,7 @@ class Banner(models.Model):
 	accept_text = models.CharField(max_length=50, default="Accept all")
 	reject_text = models.CharField(max_length=50, default="Reject")
 	prefs_text = models.CharField(max_length=50, default="Preferences")
+	text_color = models.CharField(max_length=20, default="#111827")  # dark gray
 
 	# ---------- Theme / brand ----------
 	theme = models.CharField(
