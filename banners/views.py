@@ -85,26 +85,35 @@ def banner_metadata(request, embed_key: str):
 # --- Original JS embed endpoint ---
 @permission_classes([AllowAny])
 def embed_script(request, embed_key: str):
-	def _err(msg: str):
-		return HttpResponse(f'console.warn("[CookieGuard] {msg}");', content_type="application/javascript")
-
 	try:
 		domain = Domain.objects.get(embed_key=embed_key)
 	except Domain.DoesNotExist:
-		return _err("Domain not found — invalid embed key.")
+		return HttpResponse(
+			'console.warn("[CookieGuard] Invalid embed key — domain not found");',
+			content_type="application/javascript",
+		)
 
 	user = domain.user
 	if not user:
-		return _err("No user associated with this domain.")
+		return HttpResponse(
+			'console.warn("[CookieGuard] No user for this domain");',
+			content_type="application/javascript",
+		)
 
 	profile = BillingProfile.objects.filter(user=user).first()
-	sub_status = (profile.subscription_status or "").lower() if profile else None
-	if sub_status not in ("active", "trialing"):
-		return _err(f"Inactive or free account (status={sub_status or 'unknown'})")
+	status = (profile.subscription_status or "").lower() if profile else "inactive"
+	if status not in ("active", "trialing"):
+		return HttpResponse(
+			f'console.warn("[CookieGuard] Banner disabled — subscription {status}");',
+			content_type="application/javascript",
+		)
 
 	banner = domain.banners.filter(is_active=True).first()
 	if not banner:
-		return _err("No active banner configured for this domain.")
+		return HttpResponse(
+			'console.warn("[CookieGuard] No active banner configured");',
+			content_type="application/javascript",
+		)
 
 	env = getattr(settings, "DJANGO_ENV", "production")
 	if env == "development":
@@ -114,32 +123,39 @@ def embed_script(request, embed_key: str):
 		API_URL = "https://api.cookieguard.app/api/consents/create/"
 		BASE_STATIC = "https://api.cookieguard.app/static"
 
-	banner_data = {
+	# Banner config payload
+	cfg = {
 		"id": banner.id,
 		"title": banner.title,
 		"description": banner.description,
-		"background_color": banner.background_color,
 		"accept_text": banner.accept_text,
 		"reject_text": banner.reject_text,
 		"prefs_text": banner.prefs_text,
+		"background_color": banner.background_color,
 		"accept_bg_color": banner.accept_bg_color,
 		"accept_text_color": banner.accept_text_color,
 		"reject_bg_color": banner.reject_bg_color,
 		"reject_text_color": banner.reject_text_color,
-		"text_align": banner.text_align,
+		"prefs_bg_color": banner.prefs_bg_color,
+		"prefs_text_color": banner.prefs_text_color,
 		"border_radius_px": banner.border_radius_px,
 		"spacing_px": banner.spacing_px,
+		"text_align": banner.text_align,
+		"show_logo": banner.show_cookieguard_logo,
+		"position": banner.position,
+		"type": banner.type,
 	}
 
+	# JS embed
 	js = f"""
 	(function() {{
 		console.log("[CookieGuard] ✅ Banner loaded for {domain.url}");
-		const cfg = {json.dumps(banner_data)};
+		const cfg = {json.dumps(cfg)};
 		const EMBED_KEY = "{embed_key}";
 		const API_URL = "{API_URL}";
 		const BASE_STATIC = "{BASE_STATIC}";
 
-		// inject base CSS
+		// load base CSS
 		const css = document.createElement("link");
 		css.rel = "stylesheet";
 		css.href = BASE_STATIC + "/banner-base.css";
@@ -152,83 +168,63 @@ def embed_script(request, embed_key: str):
 				body: JSON.stringify({{
 					embed_key: EMBED_KEY,
 					banner_id: cfg.id,
-					banner_version: cfg.version,
-					choice: choice,
+					banner_version: 1,
+					choice: choice
 				}}),
-			}})
-			.then(r => r.json())
-			.then(d => console.log("[CookieGuard] Consent logged", d))
-			.catch(err => console.warn("[CookieGuard] Log failed", err));
+			}}).catch(err => console.warn("[CookieGuard] log failed", err));
 		}}
 
+		// position mapping
+		const positions = {{
+			"bottom-left": {{bottom: "20px", left: "20px", right: "auto", top: "auto", transform: "none"}},
+			"bottom-right": {{bottom: "20px", right: "20px", left: "auto", top: "auto", transform: "none"}},
+			"bottom": {{bottom: "0", left: "0", right: "0", transform: "none"}},
+			"top": {{top: "0", left: "0", right: "0", transform: "none"}},
+			"top-left": {{top: "20px", left: "20px"}},
+			"top-right": {{top: "20px", right: "20px"}},
+			"center": {{top: "50%", left: "50%", transform: "translate(-50%, -50%)"}},
+		}};
+		const pos = positions[cfg.position] || positions["bottom"];
+
+		// build banner host
 		const host = document.createElement("div");
-		host.style.position = "fixed";
-		host.style.bottom = "20px";
-		host.style.left = "50%";
-		host.style.transform = "translateX(-50%)";
-		host.style.zIndex = "9999";
+		Object.assign(host.style, {{
+			position: "fixed",
+			zIndex: "9999",
+			...pos
+		}});
 		document.body.appendChild(host);
 
-		const shadow = host.attachShadow({{ mode: "open" }});
-		const style = document.createElement("style");
-		style.textContent = `
-			.cg-wrap {{
-				background: ${{cfg.background_color}};
-				color: #111827;
-				border-radius: ${{cfg.border_radius_px}}px;
-				padding: 12px 16px;
-				text-align: ${{cfg.text_align}};
-				font-family: system-ui,sans-serif;
-				box-shadow: 0 4px 6px rgba(0,0,0,0.15);
-			}}
-			.cg-title {{
-				font-weight: 700;
-				margin-bottom: 4px;
-			}}
-			.cg-desc {{
-				margin-bottom: 10px;
-				font-size: .95rem;
-			}}
-			.cg-buttons {{
-				display: flex;
-				gap: ${{cfg.spacing_px}}px;
-				justify-content: center;
-			}}
-			.cg-btn {{
-				cursor: pointer;
-				padding: 8px 14px;
-				border: none;
-				border-radius: 6px;
-				font-size: .9rem;
-			}}
-			.cg-accept {{
-				background: ${{cfg.accept_bg_color}};
-				color: ${{cfg.accept_text_color}};
-			}}
-			.cg-reject {{
-				background: ${{cfg.reject_bg_color}};
-				color: ${{cfg.reject_text_color}};
-			}}
-		`;
-
+		const shadow = host.attachShadow({{mode:"open"}});
 		const box = document.createElement("div");
 		box.className = "cg-wrap";
+		box.style.background = cfg.background_color;
+		box.style.color = "#111827";
+		box.style.borderRadius = cfg.border_radius_px + "px";
+		box.style.padding = "12px 16px";
+		box.style.maxWidth = cfg.type === "bar" ? "100%" : "400px";
+		box.style.width = cfg.type === "bar" ? "100%" : "auto";
+		box.style.boxShadow = "0 4px 10px rgba(0,0,0,0.15)";
+		box.style.textAlign = cfg.text_align;
+
 		box.innerHTML = `
-			<div class="cg-title">${{cfg.title}}</div>
-			<div class="cg-desc">${{cfg.description}}</div>
-			<div class="cg-buttons">
-				<button class="cg-btn cg-accept">${{cfg.accept_text}}</button>
-				<button class="cg-btn cg-reject">${{cfg.reject_text}}</button>
+			<div class="cg-title" style="font-weight:700;margin-bottom:6px;">${{cfg.title}}</div>
+			<div class="cg-desc" style="font-size:0.95rem;margin-bottom:${{cfg.spacing_px}}px;">${{cfg.description}}</div>
+			<div class="cg-buttons" style="display:flex;gap:${{cfg.spacing_px}}px;flex-wrap:wrap;justify-content:center;">
+				<button class="cg-btn cg-accept" style="background:${{cfg.accept_bg_color}};color:${{cfg.accept_text_color}};border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">${{cfg.accept_text}}</button>
+				<button class="cg-btn cg-reject" style="background:${{cfg.reject_bg_color}};color:${{cfg.reject_text_color}};border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">${{cfg.reject_text}}</button>
 			</div>
+			${{cfg.show_logo ? `
+			<div class="cg-footer" style="margin-top:8px;font-size:11px;opacity:.6;text-align:right;">
+				<a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer' style='color:inherit;text-decoration:none;'>Powered by CookieGuard</a>
+			</div>` : ""}}
 		`;
 
-		shadow.appendChild(style);
 		shadow.appendChild(box);
 
-		const acceptBtn = shadow.querySelector(".cg-accept");
-		const rejectBtn = shadow.querySelector(".cg-reject");
-		acceptBtn.onclick = () => {{ logConsent("accept_all"); host.remove(); }};
-		rejectBtn.onclick = () => {{ logConsent("reject_all"); host.remove(); }};
+		shadow.querySelector(".cg-accept").onclick = () => {{ logConsent("accept_all"); host.remove(); }};
+		shadow.querySelector(".cg-reject").onclick = () => {{ logConsent("reject_all"); host.remove(); }};
 	}})();
 	"""
+
 	return HttpResponse(js, content_type="application/javascript")
