@@ -88,14 +88,14 @@ def embed_script(request, embed_key: str):
 	API_URL = (
 		"http://127.0.0.1:8000/api/consents/create/"
 		if env == "development"
-		else "https://cookieguard.app/api/consents/create/"
+		else "https://api.cookieguard.app/api/consents/create/"
 	)
 
 	# optional hosted stylesheet (so you can push design tweaks later)
 	base_css_url = (
 		"http://127.0.0.1:8000/static/banner-base.css"
 		if env == "development"
-		else "https://cookieguard.app/static/banner-base.css"
+		else "https://api.cookieguard.app/static/banner-base.css"
 	)
 
 	js = f"""
