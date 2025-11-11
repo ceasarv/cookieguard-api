@@ -137,7 +137,7 @@ def embed_script(request, embed_key: str):
     (function() {{
         window.CookieGuardConfig = {json.dumps(cfg)};
         var s = document.createElement('script');
-        s.src = 'https://api.cookieguard.app/static/embed/embed.js?v=1.0.0';
+        s.src = 'https://api.cookieguard.app/static/embed.js?v=1.0.0';
         s.async = true;
         document.head.appendChild(s);
     }})();
