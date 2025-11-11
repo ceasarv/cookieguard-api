@@ -9,7 +9,7 @@
 
     function logConsent(choice, prefs = null) {
         const payload = {
-            embed_key: cfg.id,
+            embed_key: cfg.embed_key,  // ✅ was cfg.id before
             banner_id: cfg.id,
             banner_version: 1,
             choice,
@@ -21,6 +21,7 @@
             body: JSON.stringify(payload),
         }).catch((err) => console.warn("[CookieGuard] log failed", err));
     }
+
 
     // --- create shadow root host ---
     const host = document.createElement("div");
