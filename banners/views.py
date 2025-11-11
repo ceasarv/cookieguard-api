@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.http import JsonResponse
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
 from .models import Banner
@@ -57,35 +58,31 @@ class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 def embed_script(request, embed_key: str):
-	def _js(msg: str):
-		return HttpResponse(
-			f'console.warn("[CookieGuard] {msg}");',
-			content_type="application/javascript",
-			status=200,
-		)
+	def _err(msg: str):
+		return JsonResponse({"error": msg}, status=400)
 
-	# --- Domain lookup ---
+	# --- Lookup domain ---
 	try:
 		domain = Domain.objects.get(embed_key=embed_key)
 	except Domain.DoesNotExist:
-		return _js("Domain not found — check your embed key.")
+		return _err("Domain not found — invalid embed key.")
 
 	user = domain.user
 	if not user:
-		return _js("No user associated with this domain.")
+		return _err("No user associated with this domain.")
 
-	# --- Subscription check ---
+	# --- Verify billing ---
 	profile = BillingProfile.objects.filter(user=user).first()
 	sub_status = (profile.subscription_status or "").lower() if profile else None
 	if sub_status not in ("active", "trialing"):
-		return _js("// CookieGuard: inactive or free account")
+		return _err(f"Inactive or free account (status={sub_status or 'unknown'})")
 
-	# --- Banner lookup ---
+	# --- Get banner ---
 	banner = domain.banners.filter(is_active=True).first()
 	if not banner:
-		return _js("// CookieGuard: no active banner for this domain")
+		return _err("No active banner configured for this domain.")
 
-	# --- Environment-based API URL ---
+	# --- Environment URLs ---
 	env = getattr(settings, "DJANGO_ENV", "production")
 	if env == "development":
 		API_URL = "http://127.0.0.1:8000/api/consents/create/"
@@ -94,46 +91,40 @@ def embed_script(request, embed_key: str):
 		API_URL = "https://api.cookieguard.app/api/consents/create/"
 		BASE_STATIC = "https://api.cookieguard.app/static"
 
-	# --- Compute text color (fallbacks) ---
-	text_color = getattr(banner, "text_color", None)
-	if not text_color:
-		text_color = "#ffffff" if banner.theme == "dark" else "#111827"
-
-	# --- Config ---
-	cfg = {
+	# --- Prepare banner data ---
+	banner_data = {
 		"id": banner.id,
 		"version": banner.version,
 		"title": banner.title,
 		"description": banner.description,
+		"background_color": banner.background_color,
 		"accept_text": banner.accept_text,
 		"reject_text": banner.reject_text,
 		"prefs_text": banner.prefs_text,
-		"background_color": banner.background_color,
-		"text_color": text_color,
 		"accept_bg_color": banner.accept_bg_color,
 		"accept_text_color": banner.accept_text_color,
 		"reject_bg_color": banner.reject_bg_color,
 		"reject_text_color": banner.reject_text_color,
 		"prefs_bg_color": banner.prefs_bg_color,
 		"prefs_text_color": banner.prefs_text_color,
+		"text_align": banner.text_align,
 		"border_radius_px": banner.border_radius_px,
 		"spacing_px": banner.spacing_px,
-		"text_align": banner.text_align,
 	}
 
+	# --- Generate JS ---
 	js = f"""
     (function() {{
         console.log("[CookieGuard] ✅ Banner loaded for {domain.url}");
-        const cfg = {json.dumps(cfg)};
+        const cfg = {json.dumps(banner_data)};
         const EMBED_KEY = "{embed_key}";
         const API_URL = "{API_URL}";
         const BASE_STATIC = "{BASE_STATIC}";
 
-        // Inject base stylesheet
+        // inject base CSS
         const css = document.createElement("link");
         css.rel = "stylesheet";
         css.href = BASE_STATIC + "/banner-base.css";
-        css.crossOrigin = "anonymous";
         document.head.appendChild(css);
 
         function logConsent(choice) {{
@@ -152,60 +143,52 @@ def embed_script(request, embed_key: str):
             .catch(err => console.warn("[CookieGuard] Log failed", err));
         }}
 
-        // Create host + shadow DOM
+        // render banner
         const host = document.createElement("div");
         host.style.position = "fixed";
-        host.style.bottom = "24px";
+        host.style.bottom = "20px";
         host.style.left = "50%";
         host.style.transform = "translateX(-50%)";
-        host.style.zIndex = "99999";
+        host.style.zIndex = "9999";
         document.body.appendChild(host);
 
         const shadow = host.attachShadow({{ mode: "open" }});
-
         const style = document.createElement("style");
         style.textContent = `
             .cg-wrap {{
-                position: relative;
                 background: ${{cfg.background_color}};
-                color: ${{cfg.text_color}};
-                border-radius: ${banner.border_radius_px}px;
-                padding: ${banner.padding_y_px}px ${banner.padding_x_px}px;
-                text-align: ${banner.text_align};
-                font-family: system-ui, sans-serif;
-                line-height: 1.45;
-                box-shadow: ${banner.box_shadow_css};
-                max-width: 520px;
+                color: ${{cfg.text_color || "#111827"}};
+                border-radius: ${{cfg.border_radius_px}}px;
+                padding: 12px 16px;
+                text-align: ${{cfg.text_align}};
+                font-family: system-ui,sans-serif;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.15);
                 animation: cgFadeIn .3s ease;
             }}
             @keyframes cgFadeIn {{
-                from {{ opacity: 0; transform: scale(0.95); }}
+                from {{ opacity: 0; transform: scale(.95); }}
                 to {{ opacity: 1; transform: scale(1); }}
             }}
             .cg-title {{
-                font-size: 1.125rem;
                 font-weight: 700;
-                margin-bottom: 6px;
+                margin-bottom: 4px;
             }}
             .cg-desc {{
+                margin-bottom: 10px;
                 font-size: .95rem;
-                margin-bottom: ${banner.spacing_px}px;
             }}
             .cg-buttons {{
                 display: flex;
-                gap: ${banner.spacing_px}px;
+                gap: ${{cfg.spacing_px}}px;
                 justify-content: center;
-                flex-wrap: wrap;
             }}
             .cg-btn {{
-                font-size: .9rem;
-                padding: 8px 14px;
                 cursor: pointer;
+                padding: 8px 14px;
                 border: none;
                 border-radius: 6px;
-                transition: transform .05s ease;
+                font-size: .9rem;
             }}
-            .cg-btn:active {{ transform: scale(.97); }}
             .cg-accept {{
                 background: ${{cfg.accept_bg_color}};
                 color: ${{cfg.accept_text_color}};
@@ -213,10 +196,6 @@ def embed_script(request, embed_key: str):
             .cg-reject {{
                 background: ${{cfg.reject_bg_color}};
                 color: ${{cfg.reject_text_color}};
-            }}
-            .cg-prefs {{
-                background: ${{cfg.prefs_bg_color}};
-                color: ${{cfg.prefs_text_color}};
             }}
         `;
 
@@ -228,16 +207,23 @@ def embed_script(request, embed_key: str):
             <div class="cg-buttons">
                 <button class="cg-btn cg-accept">${{cfg.accept_text}}</button>
                 <button class="cg-btn cg-reject">${{cfg.reject_text}}</button>
-            </div>`;
+            </div>
+        `;
 
         shadow.appendChild(style);
         shadow.appendChild(box);
 
-        // Button events
         const acceptBtn = shadow.querySelector(".cg-accept");
         const rejectBtn = shadow.querySelector(".cg-reject");
-        if (acceptBtn) acceptBtn.onclick = () => {{ logConsent("accept_all"); host.remove(); }};
-        if (rejectBtn) rejectBtn.onclick = () => {{ logConsent("reject_all"); host.remove(); }};
+        acceptBtn.onclick = () => {{ logConsent("accept_all"); host.remove(); }};
+        rejectBtn.onclick = () => {{ logConsent("reject_all"); host.remove(); }};
     }})();"""
 
-	return HttpResponse(js, content_type="application/javascript")
+	# --- Return JSON with both JS and banner data ---
+	return JsonResponse({
+		"domain": domain.url,
+		"user": user.email if user else None,
+		"subscription_status": sub_status,
+		"banner": banner_data,
+		"script": js,
+	})
