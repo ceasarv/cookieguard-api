@@ -89,14 +89,14 @@ def embed_script(request, embed_key: str):
 		domain = Domain.objects.get(embed_key=embed_key)
 	except Domain.DoesNotExist:
 		return HttpResponse(
-			'console.warn("[CookieGuard] Invalid embed key — domain not found");',
+			'console.warn("[CookieGuard] Invalid embed key");',
 			content_type="application/javascript",
 		)
 
 	user = domain.user
 	if not user:
 		return HttpResponse(
-			'console.warn("[CookieGuard] No user for this domain");',
+			'console.warn("[CookieGuard] Domain has no user");',
 			content_type="application/javascript",
 		)
 
@@ -104,26 +104,24 @@ def embed_script(request, embed_key: str):
 	status = (profile.subscription_status or "").lower() if profile else "inactive"
 	if status not in ("active", "trialing"):
 		return HttpResponse(
-			f'console.warn("[CookieGuard] Banner disabled — subscription {status}");',
+			f'console.warn("[CookieGuard] Inactive subscription ({status})");',
 			content_type="application/javascript",
 		)
 
 	banner = domain.banners.filter(is_active=True).first()
 	if not banner:
 		return HttpResponse(
-			'console.warn("[CookieGuard] No active banner configured");',
+			'console.warn("[CookieGuard] No active banner");',
 			content_type="application/javascript",
 		)
 
 	env = getattr(settings, "DJANGO_ENV", "production")
-	if env == "development":
-		API_URL = "http://127.0.0.1:8000/api/consents/create/"
-		BASE_STATIC = "http://127.0.0.1:8000/static"
-	else:
-		API_URL = "https://api.cookieguard.app/api/consents/create/"
-		BASE_STATIC = "https://api.cookieguard.app/static"
+	API_URL = (
+		"http://127.0.0.1:8000/api/consents/create/"
+		if env == "development"
+		else "https://api.cookieguard.app/api/consents/create/"
+	)
 
-	# Banner config payload
 	cfg = {
 		"id": banner.id,
 		"title": banner.title,
@@ -142,88 +140,165 @@ def embed_script(request, embed_key: str):
 		"spacing_px": banner.spacing_px,
 		"text_align": banner.text_align,
 		"show_logo": banner.show_cookieguard_logo,
+		"show_prefs": banner.show_preferences_button,
 		"position": banner.position,
 		"type": banner.type,
 	}
 
-	# JS embed
 	js = f"""
 	(function() {{
 		console.log("[CookieGuard] ✅ Banner loaded for {domain.url}");
 		const cfg = {json.dumps(cfg)};
 		const EMBED_KEY = "{embed_key}";
 		const API_URL = "{API_URL}";
-		const BASE_STATIC = "{BASE_STATIC}";
 
-		// load base CSS
-		const css = document.createElement("link");
-		css.rel = "stylesheet";
-		css.href = BASE_STATIC + "/banner-base.css";
-		document.head.appendChild(css);
-
-		function logConsent(choice) {{
+		function logConsent(choice, prefs=null) {{
+			const body = {{
+				embed_key: EMBED_KEY,
+				banner_id: cfg.id,
+				banner_version: 1,
+				choice,
+				preferences: prefs
+			}};
 			fetch(API_URL, {{
 				method: "POST",
 				headers: {{ "Content-Type": "application/json" }},
-				body: JSON.stringify({{
-					embed_key: EMBED_KEY,
-					banner_id: cfg.id,
-					banner_version: 1,
-					choice: choice
-				}}),
-			}}).catch(err => console.warn("[CookieGuard] log failed", err));
+				body: JSON.stringify(body),
+			}})
+			.then(r => r.json())
+			.then(d => console.log("[CookieGuard] consent logged", d))
+			.catch(err => console.warn("[CookieGuard] log failed", err));
 		}}
 
-		// position mapping
-		const positions = {{
-			"bottom-left": {{bottom: "20px", left: "20px", right: "auto", top: "auto", transform: "none"}},
-			"bottom-right": {{bottom: "20px", right: "20px", left: "auto", top: "auto", transform: "none"}},
-			"bottom": {{bottom: "0", left: "0", right: "0", transform: "none"}},
-			"top": {{top: "0", left: "0", right: "0", transform: "none"}},
-			"top-left": {{top: "20px", left: "20px"}},
-			"top-right": {{top: "20px", right: "20px"}},
-			"center": {{top: "50%", left: "50%", transform: "translate(-50%, -50%)"}},
-		}};
-		const pos = positions[cfg.position] || positions["bottom"];
-
-		// build banner host
+		// Build host
 		const host = document.createElement("div");
-		Object.assign(host.style, {{
-			position: "fixed",
-			zIndex: "9999",
-			...pos
-		}});
+		host.style.position = "fixed";
+		host.style.bottom = "20px";
+		host.style.left = "20px";
+		host.style.zIndex = "9999";
 		document.body.appendChild(host);
-
 		const shadow = host.attachShadow({{mode:"open"}});
+
+		const style = document.createElement("style");
+		style.textContent = `
+			.cg-wrap {{
+				background: ${{cfg.background_color}};
+				border-radius: ${{cfg.border_radius_px}}px;
+				padding: 16px;
+				max-width: 420px;
+				font-family: system-ui,sans-serif;
+				box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+			}}
+			.cg-buttons {{
+				display: flex;
+				gap: ${{cfg.spacing_px}}px;
+				justify-content: center;
+				flex-wrap: wrap;
+			}}
+			.cg-btn {{
+				cursor: pointer;
+				padding: 8px 14px;
+				border: none;
+				border-radius: 6px;
+				font-size: .9rem;
+			}}
+			.cg-accept {{ background: ${{cfg.accept_bg_color}}; color: ${{cfg.accept_text_color}}; }}
+			.cg-reject {{ background: ${{cfg.reject_bg_color}}; color: ${{cfg.reject_text_color}}; }}
+			.cg-prefs {{ background: ${{cfg.prefs_bg_color}}; color: ${{cfg.prefs_text_color}}; }}
+			.cg-footer {{ margin-top: 8px; font-size: 11px; opacity: .6; text-align: right; }}
+			.cg-footer a {{ color: inherit; text-decoration: none; }}
+			.cg-footer a:hover {{ text-decoration: underline; opacity: 1; }}
+			.cg-modal {{
+				position: fixed;
+				inset: 0;
+				background: rgba(0,0,0,0.5);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				z-index: 999999;
+			}}
+			.cg-modal-content {{
+				background: #fff;
+				padding: 20px;
+				border-radius: 10px;
+				max-width: 400px;
+				font-family: system-ui,sans-serif;
+			}}
+			.cg-toggle-row {{
+				display: flex;
+				justify-content: space-between;
+				margin: 10px 0;
+			}}
+		`;
+
 		const box = document.createElement("div");
 		box.className = "cg-wrap";
-		box.style.background = cfg.background_color;
-		box.style.color = "#111827";
-		box.style.borderRadius = cfg.border_radius_px + "px";
-		box.style.padding = "12px 16px";
-		box.style.maxWidth = cfg.type === "bar" ? "100%" : "400px";
-		box.style.width = cfg.type === "bar" ? "100%" : "auto";
-		box.style.boxShadow = "0 4px 10px rgba(0,0,0,0.15)";
-		box.style.textAlign = cfg.text_align;
-
 		box.innerHTML = `
 			<div class="cg-title" style="font-weight:700;margin-bottom:6px;">${{cfg.title}}</div>
 			<div class="cg-desc" style="font-size:0.95rem;margin-bottom:${{cfg.spacing_px}}px;">${{cfg.description}}</div>
-			<div class="cg-buttons" style="display:flex;gap:${{cfg.spacing_px}}px;flex-wrap:wrap;justify-content:center;">
-				<button class="cg-btn cg-accept" style="background:${{cfg.accept_bg_color}};color:${{cfg.accept_text_color}};border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">${{cfg.accept_text}}</button>
-				<button class="cg-btn cg-reject" style="background:${{cfg.reject_bg_color}};color:${{cfg.reject_text_color}};border:none;padding:8px 14px;border-radius:6px;cursor:pointer;">${{cfg.reject_text}}</button>
+			<div class="cg-buttons">
+				<button class="cg-btn cg-accept">${{cfg.accept_text}}</button>
+				<button class="cg-btn cg-reject">${{cfg.reject_text}}</button>
+				${{cfg.show_prefs ? `<button class="cg-btn cg-prefs">${{cfg.prefs_text}}</button>` : ""}}
 			</div>
 			${{cfg.show_logo ? `
-			<div class="cg-footer" style="margin-top:8px;font-size:11px;opacity:.6;text-align:right;">
-				<a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer' style='color:inherit;text-decoration:none;'>Powered by CookieGuard</a>
+			<div class="cg-footer">
+				<a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer'>
+					Powered by CookieGuard
+				</a>
 			</div>` : ""}}
 		`;
 
+		shadow.appendChild(style);
 		shadow.appendChild(box);
 
-		shadow.querySelector(".cg-accept").onclick = () => {{ logConsent("accept_all"); host.remove(); }};
-		shadow.querySelector(".cg-reject").onclick = () => {{ logConsent("reject_all"); host.remove(); }};
+		const acceptBtn = shadow.querySelector(".cg-accept");
+		const rejectBtn = shadow.querySelector(".cg-reject");
+		const prefsBtn = shadow.querySelector(".cg-prefs");
+
+		acceptBtn.onclick = () => {{ logConsent("accept_all"); host.remove(); }};
+		rejectBtn.onclick = () => {{ logConsent("reject_all"); host.remove(); }};
+
+		if (prefsBtn) {{
+			prefsBtn.onclick = () => {{
+				const modal = document.createElement("div");
+				modal.className = "cg-modal";
+				modal.innerHTML = `
+					<div class="cg-modal-content">
+						<h3>Cookie Preferences</h3>
+						<div class="cg-toggle-row">
+							<span>Necessary</span>
+							<input type="checkbox" checked disabled />
+						</div>
+						<div class="cg-toggle-row">
+							<span>Analytics</span>
+							<input id="cg-analytics" type="checkbox" />
+						</div>
+						<div class="cg-toggle-row">
+							<span>Marketing</span>
+							<input id="cg-marketing" type="checkbox" />
+						</div>
+						<div style="margin-top:16px;text-align:right;">
+							<button id="cg-save-prefs" class="cg-btn" style="background:#2563eb;color:#fff;">
+								Save preferences
+							</button>
+						</div>
+					</div>
+				`;
+				document.body.appendChild(modal);
+
+				modal.querySelector("#cg-save-prefs").onclick = () => {{
+					const prefs = {{
+						analytics: modal.querySelector("#cg-analytics").checked,
+						marketing: modal.querySelector("#cg-marketing").checked
+					}};
+					localStorage.setItem("cookieguard_prefs", JSON.stringify(prefs));
+					logConsent("preferences_saved", prefs);
+					modal.remove();
+					host.remove();
+				}};
+			}};
+		}}
 	}})();
 	"""
 
