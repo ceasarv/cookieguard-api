@@ -5,11 +5,13 @@
         return;
     }
 
+    console.log("[CookieGuard DEBUG] Loaded config:", window.CookieGuardConfig);
+    
     console.log("[CookieGuard] ✅ Banner loaded:", cfg);
 
     function logConsent(choice, prefs = null) {
         const payload = {
-            embed_key: cfg.embed_key,  // ✅ was cfg.id before
+            embed_key: cfg.embed_key,
             banner_id: cfg.id,
             banner_version: 1,
             choice,
@@ -19,7 +21,10 @@
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify(payload),
-        }).catch((err) => console.warn("[CookieGuard] log failed", err));
+        })
+            .then(res => res.json())
+            .then(data => console.log("[CookieGuard] Consent logged:", data))
+            .catch(err => console.warn("[CookieGuard] log failed:", err));
     }
 
 
@@ -40,8 +45,7 @@
       background: ${cfg.background_color};
       color: ${cfg.text_color};
       border-radius: ${cfg.border_radius_px}px;
-      padding: 16px;
-      max-width: 420px;
+      padding: 20px;
       font-family: system-ui,sans-serif;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       position: relative;
