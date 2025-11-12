@@ -107,9 +107,9 @@ def embed_script(request, embed_key: str):
 		if env == "development"
 		else "https://api.cookieguard.app/api/consents/create/"
 	)
-
 	cfg = {
 		"id": banner.id,
+		"embed_key": domain.embed_key,
 		"title": banner.title,
 		"description": banner.description,
 		"accept_text": banner.accept_text,
