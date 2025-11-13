@@ -1,15 +1,9 @@
 (function () {
-    /**
-     * Public function called by embed.js
-     * Opens the preferences modal inside the shadow DOM
-     */
     window.CookieGuardOpenPrefs = function (cfg, shadow, box, logConsent) {
 
-        // Safety: remove any existing modal to avoid duplicates
         const existing = shadow.querySelector(".cg-modal");
         if (existing) existing.remove();
 
-        // Modal wrapper
         const modal = document.createElement("div");
         modal.className = "cg-modal";
 
@@ -33,8 +27,9 @@
                 </div>
 
                 <div class="cg-modal-actions">
-                    <button class="cg-save">${cfg.prefs_text || "Save Preferences"}</button>
+                    <!-- flipped order -->
                     <button class="cg-cancel">Cancel</button>
+                    <button class="cg-save">Save Preferences</button>
                 </div>
             </div>
         `;
@@ -56,7 +51,6 @@
 
             modal.remove();
 
-            // Remove the entire banner after saving prefs
             const host = shadow.host;
             if (host) host.remove();
         };
