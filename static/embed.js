@@ -31,9 +31,11 @@
     // --- create shadow root host ---
     const host = document.createElement("div");
     host.style.position = "fixed";
-    host.style.zIndex = "9999";
-    host.style.bottom = "20px";
-    host.style.left = "20px";
+    host.style.zIndex = "999999";
+    host.style.bottom = "0";
+    host.style.left = "0";
+    host.style.width = "100vw";
+    host.style.margin = "0";
     document.body.appendChild(host);
 
     const shadow = host.attachShadow({mode: "open"});
@@ -41,21 +43,20 @@
     // --- style ---
     const style = document.createElement("style");
     style.textContent = `
-  .cg-wrap {
-    background: ${cfg.background_color};
-    color: ${cfg.text_color};
-    border-radius: ${cfg.border_radius_px}px;
-    padding: ${cfg.spacing_px * 2}px;
-    font-family: system-ui, sans-serif;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-    position: relative;
-    width: 100%;
-    max-width: 860px;
-    animation: cg-slide-up .45s cubic-bezier(0.25, 1, 0.5, 1);
-    display: flex;
-    flex-direction: column;
-    gap: ${cfg.spacing_px * 1.5}px;
-  }
+    .cg-wrap {
+      background: ${cfg.background_color};
+      color: ${cfg.text_color};
+      border-radius: 0; /* full width bar usually has no radius */
+      padding: ${cfg.spacing_px * 2}px;
+      font-family: system-ui, sans-serif;
+      width: 100%;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: ${cfg.spacing_px * 1.5}px;
+      animation: cg-slide-up .45s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
 
   @keyframes cg-slide-up {
     from { transform: translateY(30px); opacity: 0; }
