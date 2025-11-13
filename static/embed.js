@@ -41,85 +41,6 @@
     // --- Styles ---
     const style = document.createElement("style");
     style.textContent = `
-    .cg-wrap {
-        background: ${cfg.background_color};
-        color: ${cfg.text_color};
-        border-radius: 0;
-        padding: ${cfg.spacing_px * 2}px;
-        font-family: system-ui, sans-serif;
-        width: 100%;
-        box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
-        box-sizing: border-box;
-    }
-
-    /* Bar Layout */
-    .cg-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 24px;
-    }
-
-    .cg-left {
-        flex: 1;
-        min-width: 200px;
-    }
-
-    .cg-title {
-        font-weight: 700;
-        font-size: 1.05rem;
-        margin-bottom: 4px;
-    }
-
-    .cg-desc {
-        font-size: .92rem;
-        line-height: 1.45;
-        opacity: .9;
-    }
-
-    .cg-right {
-        display: flex;
-        align-items: center;
-    }
-
-    .cg-buttons {
-        display: flex;
-        gap: ${cfg.spacing_px}px;
-        flex-wrap: nowrap;
-    }
-
-    .cg-btn {
-        cursor: pointer;
-        padding: 10px 16px;
-        border-radius: ${cfg.border_radius_px}px;
-        font-size: .9rem;
-        font-weight: 600;
-        border: none;
-        white-space: nowrap;
-        transition: .15s ease;
-    }
-
-    .cg-btn:hover {
-        opacity: .9;
-        transform: translateY(-1px);
-    }
-
-    .cg-accept { background: ${cfg.accept_bg_color}; color: ${cfg.accept_text_color}; }
-    .cg-reject { background: ${cfg.reject_bg_color}; color: ${cfg.reject_text_color}; border: 1px solid rgba(0,0,0,.1); }
-    .cg-prefs  { background: ${cfg.prefs_bg_color}; color: ${cfg.prefs_text_color}; border: 1px solid rgba(0,0,0,.1); }
-
-    .cg-footer {
-        margin-top: 6px;
-        text-align: right;
-        font-size: 11px;
-        opacity: .65;
-    }
-    .cg-footer a:hover {
-        opacity: 1;
-        text-decoration: underline;
-    }
-
-    /* Modal styling */
     .cg-modal {
         position: fixed;
         inset: 0;
@@ -128,71 +49,123 @@
         align-items: center;
         justify-content: center;
         z-index: 999999;
-        animation: fadeIn .2s ease-out;
     }
-
-    @keyframes fadeIn {
-        from { opacity: 0 }
-        to   { opacity: 1 }
-    }
-
-    .cg-modal-content {
-        background: #fff;
+    
+    /* Modal container */
+    .cg-hub-container {
+        background: white;
+        width: 90%;
+        max-width: 640px;
+        max-height: 85vh;
+        overflow-y: auto;
+        border-radius: 18px;
         padding: 24px;
-        border-radius: 12px;
-        width: 100%;
-        max-width: 420px;
-        box-shadow: 0 15px 30px rgba(0,0,0,.2);
-        animation: popIn .25s cubic-bezier(.2,1.1,.4,1);
+        box-shadow: 0 18px 40px rgba(0,0,0,.25);
+        animation: fadeIn .25s ease;
     }
-
-    @keyframes popIn {
-        from { transform: scale(.93); opacity: 0 }
-        to   { transform: scale(1); opacity: 1 }
-    }
-
-    .cg-option {
+    
+    .cg-hub-header {
         display: flex;
         justify-content: space-between;
-        padding: 10px 0;
+        align-items: center;
+    }
+    
+    .cg-close {
+        font-size: 1.7rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        opacity: .5;
+    }
+    .cg-close:hover { opacity: .9; }
+    
+    .cg-hub-tabs {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .cg-tab {
+        border: none;
+        background: none;
+        padding: 10px 6px;
+        cursor: pointer;
         font-size: .95rem;
+        opacity: .6;
+    }
+    .cg-tab.active {
+        opacity: 1;
+        font-weight: 600;
+        border-bottom: 2px solid #333;
+    }
+    
+    .cg-tab-panel.hidden { display: none; }
+    
+    .cg-category {
+        margin-top: 20px;
+        padding-bottom: 15px;
         border-bottom: 1px solid #eee;
     }
-
-    .cg-modal-actions {
+    
+    .cg-cat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    /* iOS toggle switch */
+    .cg-switch {
+        position: relative;
+        width: 46px;
+        height: 24px;
+    }
+    .cg-switch input {
+        display: none;
+    }
+    .cg-slider {
+        position: absolute;
+        inset: 0;
+        border-radius: 24px;
+        background: #ccc;
+        cursor: pointer;
+        transition: .2s;
+    }
+    .cg-slider::before {
+        content: "";
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        top: 3px;
+        left: 3px;
+        border-radius: 50%;
+        background: white;
+        transition: .2s;
+    }
+    .cg-switch input:checked + .cg-slider {
+        background: ${cfg.accept_bg_color};
+    }
+    .cg-switch input:checked + .cg-slider::before {
+        transform: translateX(22px);
+    }
+    
+    /* Buttons */
+    .cg-hub-footer {
+        margin-top: 20px;
         display: flex;
         justify-content: flex-end;
-        margin-top: 20px;
-        gap: 10px;
     }
-    .cg-save {
+    .cg-save-btn {
         background: ${cfg.accept_bg_color};
-        color: ${cfg.accept_text_color};
-        padding: 10px 18px;
-        border-radius: 6px;
-        border: none;
+        color: white;
+        padding: 12px 18px;
+        border-radius: 8px;
         cursor: pointer;
-    }
-    .cg-cancel {
-        background: transparent;
-        color: #555;
-        padding: 10px 14px;
         border: none;
-        cursor: pointer;
+        font-weight: 600;
     }
+    .cg-save-btn:hover { opacity: .9; }
 
-    /* Mobile layout */
-    @media (max-width: 640px) {
-        .cg-bar {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 12px;
-        }
-        .cg-buttons {
-            flex-wrap: wrap;
-            justify-content: flex-start;
-        }
-    }
     `;
 
     // --- Banner HTML ---
@@ -244,7 +217,6 @@
         };
     }
 
-    // --- Modular prefs loader ---
     function loadPrefsModule() {
         if (window.CookieGuardPrefsLoaded) {
             window.CookieGuardOpenPrefs(cfg, shadow, box, logConsent);
@@ -259,4 +231,5 @@
         };
         document.head.appendChild(s);
     }
+
 })();
