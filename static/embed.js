@@ -55,6 +55,7 @@
       flex-direction: column;
       gap: ${cfg.spacing_px * 1.5}px;
       animation: cg-slide-up .45s cubic-bezier(0.25, 1, 0.5, 1);
+      box-sizing: border-box;
     }
 
 
