@@ -18,4 +18,5 @@ urlpatterns = [
 	path('api/consents/', include('consents.urls')),
 	path('api/banners/', include('banners.urls')),
 	path("api/support/", include("support.urls")),
+	path("api/analytics/", include("analytics.urls")),
 ]

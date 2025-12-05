@@ -44,7 +44,8 @@ INSTALLED_APPS = [
 	'domains',
 	'banners',
 	'consents',
-	'support'
+	'support',
+	'analytics'
 ]
 
 MIDDLEWARE = [
