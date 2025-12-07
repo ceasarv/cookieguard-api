@@ -26,16 +26,13 @@ class ConsentAnalyticsView(APIView):
 		domain_id = request.query_params.get("domain_id")
 		banner_id = request.query_params.get("banner_id")
 
-		# Start with all consents belonging to this user
 		qs = ConsentLog.objects.filter(domain__user=user)
 
-		# Optional filters
 		if domain_id:
 			qs = qs.filter(domain_id=domain_id)
 		if banner_id:
 			qs = qs.filter(banner_id=banner_id)
 
-		# Group by date and count choices
 		data = (
 			qs.annotate(date=TruncDate("created_at"))
 			.values("date")
@@ -45,10 +42,9 @@ class ConsentAnalyticsView(APIView):
 				rejects=Count("id", filter=Q(choice="reject")),
 				prefs=Count("id", filter=Q(choice="prefs")),
 			)
-			.order_by("date")
+			.order_by("-date")  # 🔥 newest first
 		)
 
-		# Compute accept/reject rates per day
 		result = []
 		for row in data:
 			total = row["total"]

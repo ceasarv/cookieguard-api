@@ -91,13 +91,19 @@ def embed_script(request, embed_key: str):
 		return HttpResponse('console.warn("[CookieGuard] Invalid embed key");', content_type="application/javascript")
 
 	user = domain.user
-	profile = BillingProfile.objects.filter(user=user).first()
-	status = (profile.subscription_status or "").lower() if profile else "inactive"
-	if status not in ("active", "trialing"):
-		return HttpResponse(f'console.warn("[CookieGuard] Inactive subscription ({status})");',
-							content_type="application/javascript")
+
+	# Skip subscription check for test domain
+	is_test_domain = domain.url == "https://cookieguard-test-site.vercel.app"
+
+	if not is_test_domain:
+		profile = BillingProfile.objects.filter(user=user).first()
+		status = (profile.subscription_status or "").lower() if profile else "inactive"
+		if status not in ("active", "trialing"):
+			return HttpResponse(f'console.warn("[CookieGuard] Inactive subscription ({status})");',
+								content_type="application/javascript")
 
 	banner = domain.banners.filter(is_active=True).first()
+	
 	if not banner:
 		return HttpResponse('console.warn("[CookieGuard] No active banner");', content_type="application/javascript")
 
