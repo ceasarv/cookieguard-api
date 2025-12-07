@@ -41,6 +41,109 @@
     // --- Styles ---
     const style = document.createElement("style");
     style.textContent = `
+    /* Banner styles */
+    .cg-wrap {
+        font-family: system-ui, sans-serif;
+        line-height: 1.45;
+        animation: cgFadeIn 0.3s ease;
+    }
+
+    .cg-bar {
+        background: ${cfg.background_color};
+        color: ${cfg.text_color};
+        border-radius: ${cfg.border_radius_px}px;
+        padding: 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        max-width: 100%;
+    }
+
+    .cg-left {
+        flex: 1;
+    }
+
+    .cg-right {
+        flex-shrink: 0;
+    }
+
+    .cg-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        margin-bottom: 6px;
+    }
+
+    .cg-desc {
+        font-size: 0.95rem;
+        margin-bottom: ${cfg.spacing_px}px;
+    }
+
+    .cg-buttons {
+        display: flex;
+        gap: ${cfg.spacing_px}px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .cg-btn {
+        cursor: pointer;
+        padding: 8px 14px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: opacity 0.15s ease;
+    }
+
+    .cg-btn:hover {
+        opacity: 0.85;
+    }
+
+    .cg-accept {
+        background: ${cfg.accept_bg_color};
+        color: ${cfg.accept_text_color};
+    }
+
+    .cg-reject {
+        background: ${cfg.reject_bg_color};
+        color: ${cfg.reject_text_color};
+    }
+
+    .cg-prefs {
+        background: ${cfg.prefs_bg_color};
+        color: ${cfg.prefs_text_color};
+    }
+
+    .cg-footer {
+        margin-top: 8px;
+        font-size: 11px;
+        opacity: 0.6;
+        text-align: right;
+    }
+
+    .cg-footer a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .cg-footer a:hover {
+        text-decoration: underline;
+        opacity: 1;
+    }
+
+    @keyframes cgFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.96);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* Modal styles */
     .cg-modal {
         position: fixed;
         inset: 0;
