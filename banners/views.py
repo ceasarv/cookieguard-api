@@ -92,8 +92,12 @@ def embed_script(request, embed_key: str):
 
 	user = domain.user
 
-	# Skip subscription check for test domain
-	is_test_domain = domain.url == "https://cookieguard-test-site.vercel.app"
+	# Skip subscription check for test domain (normalized comparison)
+	normalized_url = domain.url.rstrip('/').lower()
+	is_test_domain = 'cookieguard-test-site.vercel.app' in normalized_url
+
+	# Temporary debug logging
+	log.info(f"Domain URL: {domain.url}, Normalized: {normalized_url}, Is Test: {is_test_domain}")
 
 	if not is_test_domain:
 		profile = BillingProfile.objects.filter(user=user).first()
@@ -103,7 +107,7 @@ def embed_script(request, embed_key: str):
 								content_type="application/javascript")
 
 	banner = domain.banners.filter(is_active=True).first()
-	
+
 	if not banner:
 		return HttpResponse('console.warn("[CookieGuard] No active banner");', content_type="application/javascript")
 
