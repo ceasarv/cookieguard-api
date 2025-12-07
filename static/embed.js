@@ -59,6 +59,8 @@
         align-items: center;
         gap: 20px;
         max-width: 100%;
+        position: relative;
+        padding-bottom: 28px;
     }
 
     .cg-left {
@@ -116,10 +118,11 @@
     }
 
     .cg-footer {
-        margin-top: 8px;
+        position: absolute;
+        bottom: 8px;
+        right: 12px;
         font-size: 11px;
         opacity: 0.6;
-        text-align: right;
     }
 
     .cg-footer a {
@@ -288,14 +291,14 @@
             ${cfg.show_prefs ? `<button class="cg-btn cg-prefs">${cfg.prefs_text}</button>` : ""}
           </div>
         </div>
-      </div>
 
-      ${cfg.show_logo ? `
+        ${cfg.show_logo ? `
         <div class="cg-footer">
           <a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer'>
             Powered by CookieGuard
           </a>
         </div>` : ""}
+      </div>
     `;
 
     shadow.appendChild(style);
