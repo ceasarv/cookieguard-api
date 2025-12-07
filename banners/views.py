@@ -82,12 +82,15 @@ def banner_metadata(request, embed_key: str):
 	})
 
 
-# --- Original JS embed endpoint ---
 @permission_classes([AllowAny])
 def embed_script(request, embed_key: str):
+	log.info(f"=== EMBED SCRIPT CALLED with key: {embed_key} ===")
+
 	try:
 		domain = Domain.objects.get(embed_key=embed_key)
+		log.info(f"=== DOMAIN FOUND: {domain.url} ===")
 	except Domain.DoesNotExist:
+		log.info("=== DOMAIN NOT FOUND ===")
 		return HttpResponse('console.warn("[CookieGuard] Invalid embed key");', content_type="application/javascript")
 
 	user = domain.user
@@ -97,14 +100,19 @@ def embed_script(request, embed_key: str):
 	is_test_domain = 'cookieguard-test-site.vercel.app' in normalized_url
 
 	# Temporary debug logging
-	log.info(f"Domain URL: {domain.url}, Normalized: {normalized_url}, Is Test: {is_test_domain}")
+	log.info(f"=== Domain URL: {domain.url}, Normalized: {normalized_url}, Is Test: {is_test_domain} ===")
 
 	if not is_test_domain:
+		log.info("=== CHECKING SUBSCRIPTION ===")
 		profile = BillingProfile.objects.filter(user=user).first()
 		status = (profile.subscription_status or "").lower() if profile else "inactive"
+		log.info(f"=== SUBSCRIPTION STATUS: {status} ===")
 		if status not in ("active", "trialing"):
+			log.info("=== RETURNING INACTIVE WARNING ===")
 			return HttpResponse(f'console.warn("[CookieGuard] Inactive subscription ({status})");',
 								content_type="application/javascript")
+	else:
+		log.info("=== TEST DOMAIN - SKIPPING SUBSCRIPTION CHECK ===")
 
 	banner = domain.banners.filter(is_active=True).first()
 
