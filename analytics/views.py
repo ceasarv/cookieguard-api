@@ -4,6 +4,7 @@ from django.db.models.functions import TruncDate
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from consents.models import ConsentLog
 
@@ -20,6 +21,22 @@ class ConsentAnalyticsView(APIView):
 
 	permission_classes = [IsAuthenticated]
 
+	@extend_schema(
+		parameters=[
+			OpenApiParameter(name='domain_id', type=str, location=OpenApiParameter.QUERY, required=False),
+			OpenApiParameter(name='banner_id', type=str, location=OpenApiParameter.QUERY, required=False),
+		],
+		responses={200: {"type": "array", "items": {"type": "object", "properties": {
+			"date": {"type": "string", "format": "date"},
+			"total": {"type": "integer"},
+			"accepts": {"type": "integer"},
+			"rejects": {"type": "integer"},
+			"prefs": {"type": "integer"},
+			"accept_rate": {"type": "number", "nullable": True},
+			"reject_rate": {"type": "number", "nullable": True}
+		}}}},
+		description="Get daily consent analytics for the authenticated user's domains"
+	)
 	def get(self, request):
 		user = request.user
 

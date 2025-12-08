@@ -14,6 +14,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 import google.oauth2.id_token
 import google.auth.transport.requests
@@ -186,6 +187,11 @@ def register(request):
 	}, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {"email": {"type": "string"}, "password": {"type": "string"}}}},
+	responses={200: {"type": "object", "properties": {"user": {"type": "object"}, "tokens": {"type": "object"}}}},
+	description="Login with email and password"
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login(request):
@@ -201,6 +207,11 @@ def login(request):
 	})
 
 
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {"credential": {"type": "string"}, "id_token": {"type": "string"}}}},
+	responses={200: {"type": "object", "properties": {"user": {"type": "object"}, "tokens": {"type": "object"}}}},
+	description="Login with Google OAuth2"
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def google_login(request):

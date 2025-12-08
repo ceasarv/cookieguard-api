@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python manage.py collectstatic:*)"
+      "Bash(python manage.py collectstatic:*)",
+      "Bash(pip freeze:*)"
     ],
     "deny": [],
     "ask": []
