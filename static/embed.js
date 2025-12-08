@@ -41,7 +41,6 @@
     // --- Styles ---
     const style = document.createElement("style");
     style.textContent = `
-    /* Banner styles */
     .cg-wrap {
         font-family: system-ui, sans-serif;
         line-height: 1.45;
@@ -52,49 +51,44 @@
         background: ${cfg.background_color};
         color: ${cfg.text_color};
         border-radius: ${cfg.border_radius_px}px;
-        padding: 16px;
+        padding: 20px 24px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-end;
         gap: 20px;
         max-width: 100%;
-        position: relative;
-        padding-bottom: 28px;
     }
 
-    .cg-left {
-        flex: 1;
-    }
-
-    .cg-right {
-        flex-shrink: 0;
+    .cg-content {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .cg-title {
         font-weight: 700;
         font-size: 1.05rem;
-        margin-bottom: 6px;
     }
 
     .cg-desc {
         font-size: 0.95rem;
-        margin-bottom: ${cfg.spacing_px}px;
+        max-width: 600px;
     }
 
     .cg-buttons {
         display: flex;
         gap: ${cfg.spacing_px}px;
-        justify-content: center;
         flex-wrap: wrap;
     }
 
     .cg-btn {
         cursor: pointer;
-        padding: 8px 14px;
+        padding: 10px 18px;
         border: none;
         border-radius: 6px;
         font-size: 0.9rem;
+        font-weight: 500;
         transition: opacity 0.15s ease;
     }
 
@@ -118,11 +112,9 @@
     }
 
     .cg-footer {
-        position: absolute;
-        bottom: 8px;
-        right: 12px;
-        font-size: 11px;
-        opacity: 0.6;
+        font-size: 12px;
+        opacity: 0.5;
+        white-space: nowrap;
     }
 
     .cg-footer a {
@@ -138,11 +130,11 @@
     @keyframes cgFadeIn {
         from {
             opacity: 0;
-            transform: scale(0.96);
+            transform: translateY(10px);
         }
         to {
             opacity: 1;
-            transform: scale(1);
+            transform: translateY(0);
         }
     }
 
@@ -157,7 +149,6 @@
         z-index: 999999;
     }
     
-    /* Modal container */
     .cg-hub-container {
         background: white;
         width: 90%;
@@ -167,7 +158,7 @@
         border-radius: 18px;
         padding: 24px;
         box-shadow: 0 18px 40px rgba(0,0,0,.25);
-        animation: fadeIn .25s ease;
+        animation: cgFadeIn .25s ease;
     }
     
     .cg-hub-header {
@@ -220,7 +211,6 @@
         align-items: center;
     }
     
-    /* iOS toggle switch */
     .cg-switch {
         position: relative;
         width: 46px;
@@ -255,7 +245,6 @@
         transform: translateX(22px);
     }
     
-    /* Buttons */
     .cg-hub-footer {
         margin-top: 20px;
         display: flex;
@@ -271,7 +260,6 @@
         font-weight: 600;
     }
     .cg-save-btn:hover { opacity: .9; }
-
     `;
 
     // --- Banner HTML ---
@@ -279,12 +267,9 @@
     box.className = "cg-wrap";
     box.innerHTML = `
       <div class="cg-bar">
-        <div class="cg-left">
+        <div class="cg-content">
           <div class="cg-title">${cfg.title}</div>
           <div class="cg-desc">${cfg.description}</div>
-        </div>
-
-        <div class="cg-right">
           <div class="cg-buttons">
             <button class="cg-btn cg-accept">${cfg.accept_text}</button>
             <button class="cg-btn cg-reject">${cfg.reject_text}</button>
