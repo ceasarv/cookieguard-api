@@ -29,7 +29,7 @@
     // --- Shadow root host ---
     const host = document.createElement("div");
     host.style.position = "fixed";
-    host.style.zIndex = "999999";
+    host.style.zIndex = cfg.z_index || "999999";
     host.style.bottom = "0";
     host.style.left = "0";
     host.style.width = "100vw";
@@ -37,6 +37,18 @@
     document.body.appendChild(host);
 
     const shadow = host.attachShadow({mode: "open"});
+
+    // --- Shadow helper ---
+    function getShadow(shadowType) {
+        const shadows = {
+            'none': 'none',
+            'sm': '0 1px 2px rgba(0,0,0,0.05)',
+            'md': '0 4px 6px rgba(0,0,0,0.1)',
+            'lg': '0 10px 15px rgba(0,0,0,0.1)',
+            'xl': '0 20px 25px rgba(0,0,0,0.15)',
+        };
+        return shadows[shadowType] || shadows['md'];
+    }
 
     // --- Styles ---
     const style = document.createElement("style");
@@ -49,15 +61,18 @@
 
     .cg-bar {
         background: ${cfg.background_color};
-        color: ${cfg.text_color};
+        opacity: ${cfg.background_opacity};
+        color: ${cfg.text_color || '#111827'};
         border-radius: ${cfg.border_radius_px}px;
-        padding: 20px 24px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border: ${cfg.border_width_px}px solid ${cfg.border_color};
+        padding: ${cfg.padding_y_px}px ${cfg.padding_x_px}px;
+        box-shadow: ${cfg.shadow_custom || getShadow(cfg.shadow)};
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
         gap: 20px;
         max-width: 100%;
+        text-align: ${cfg.text_align};
     }
 
     .cg-content {
@@ -85,8 +100,6 @@
     .cg-btn {
         cursor: pointer;
         padding: 10px 18px;
-        border: none;
-        border-radius: 6px;
         font-size: 0.9rem;
         font-weight: 500;
         transition: opacity 0.15s ease;
@@ -99,16 +112,22 @@
     .cg-accept {
         background: ${cfg.accept_bg_color};
         color: ${cfg.accept_text_color};
+        border: ${cfg.accept_border_width_px}px solid ${cfg.accept_border_color};
+        border-radius: ${cfg.accept_border_radius_px}px;
     }
 
     .cg-reject {
         background: ${cfg.reject_bg_color};
         color: ${cfg.reject_text_color};
+        border: ${cfg.reject_border_width_px}px solid ${cfg.reject_border_color};
+        border-radius: ${cfg.reject_border_radius_px}px;
     }
 
     .cg-prefs {
         background: ${cfg.prefs_bg_color};
         color: ${cfg.prefs_text_color};
+        border: ${cfg.prefs_border_width_px}px solid ${cfg.prefs_border_color};
+        border-radius: ${cfg.prefs_border_radius_px}px;
     }
 
     .cg-footer {
@@ -136,6 +155,16 @@
             opacity: 1;
             transform: translateY(0);
         }
+    }
+
+    /* Overlay */
+    .cg-overlay {
+        position: fixed;
+        inset: 0;
+        background: ${cfg.overlay_color};
+        opacity: ${cfg.overlay_opacity};
+        backdrop-filter: blur(${cfg.overlay_blur_px}px);
+        z-index: -1;
     }
 
     /* Modal styles */
@@ -252,11 +281,11 @@
     }
     .cg-save-btn {
         background: ${cfg.accept_bg_color};
-        color: white;
+        color: ${cfg.accept_text_color};
         padding: 12px 18px;
-        border-radius: 8px;
+        border-radius: ${cfg.accept_border_radius_px}px;
         cursor: pointer;
-        border: none;
+        border: ${cfg.accept_border_width_px}px solid ${cfg.accept_border_color};
         font-weight: 600;
     }
     .cg-save-btn:hover { opacity: .9; }
@@ -266,18 +295,19 @@
     const box = document.createElement("div");
     box.className = "cg-wrap";
     box.innerHTML = `
+      ${cfg.overlay_enabled ? `<div class="cg-overlay"></div>` : ""}
       <div class="cg-bar">
         <div class="cg-content">
           <div class="cg-title">${cfg.title}</div>
           <div class="cg-desc">${cfg.description}</div>
           <div class="cg-buttons">
             <button class="cg-btn cg-accept">${cfg.accept_text}</button>
-            <button class="cg-btn cg-reject">${cfg.reject_text}</button>
-            ${cfg.show_prefs ? `<button class="cg-btn cg-prefs">${cfg.prefs_text}</button>` : ""}
+            ${cfg.has_reject_button ? `<button class="cg-btn cg-reject">${cfg.reject_text}</button>` : ""}
+            ${cfg.show_preferences_button ? `<button class="cg-btn cg-prefs">${cfg.prefs_text}</button>` : ""}
           </div>
         </div>
 
-        ${cfg.show_logo ? `
+        ${cfg.show_cookieguard_logo ? `
         <div class="cg-footer">
           <a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer'>
             Powered by CookieGuard
@@ -295,13 +325,15 @@
         host.remove();
     };
 
-    shadow.querySelector(".cg-reject").onclick = () => {
-        logConsent("reject_all");
-        host.remove();
-    };
+    const rejectBtn = shadow.querySelector(".cg-reject");
+    if (rejectBtn) {
+        rejectBtn.onclick = () => {
+            logConsent("reject_all");
+            host.remove();
+        };
+    }
 
     const prefsBtn = shadow.querySelector(".cg-prefs");
-
     if (prefsBtn) {
         prefsBtn.onclick = () => {
             loadPrefsModule();
