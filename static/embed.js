@@ -306,6 +306,7 @@
     
     .cg-hub-container {
         background: white;
+        color: #111827;
         width: 90%;
         max-width: 640px;
         max-height: 85vh;
@@ -315,11 +316,32 @@
         box-shadow: 0 18px 40px rgba(0,0,0,.25);
         animation: cgFadeIn .25s ease;
     }
-    
+
+    .cg-hub-container h2 {
+        color: #111827;
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .cg-hub-container h3 {
+        color: #111827;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .cg-hub-container p {
+        color: #6b7280;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        margin: 0;
+    }
+
     .cg-hub-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-bottom: 10px;
     }
     
     .cg-close {
