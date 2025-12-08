@@ -197,6 +197,8 @@
         gap: 20px;
         max-width: 100%;
         text-align: ${cfg.text_align};
+        position: relative;
+        padding-bottom: 32px;
     }
 
     .cg-content {
@@ -255,8 +257,11 @@
     }
 
     .cg-footer {
-        font-size: 12px;
-        opacity: 0.5;
+        position: absolute;
+        bottom: 8px;
+        right: 12px;
+        font-size: 11px;
+        opacity: 0.6;
         white-space: nowrap;
     }
 
