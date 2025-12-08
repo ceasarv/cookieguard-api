@@ -221,10 +221,11 @@
 
     .cg-btn {
         cursor: pointer;
-        padding: 8px 14px;
-        border: none;
+        padding: 10px 18px;
         font-size: 0.9rem;
+        font-weight: 500;
         transition: opacity 0.15s ease;
+        border: 1px solid transparent;
     }
 
     .cg-btn:hover {
