@@ -42,20 +42,31 @@
                     <!-- TAB: POLICY -->
                     <div class="cg-tab-panel hidden" data-panel="policy">
                         <h3>Cookie Policy</h3>
-                        <p id="cg-policy-text">Your website owner can link their full cookie policy here.</p>
+                        <p id="cg-policy-text">We use cookies to enhance your browsing experience and analyze our traffic. By clicking 'Accept', you consent to our use of cookies. Read our Cookie Policy to learn more.</p>
                     </div>
 
                 </div>
 
                 <!-- FOOTER BUTTON -->
                 <div class="cg-hub-footer">
-                    <button class="cg-save-btn">Save settings</button>
+                    <div class="cg-hub-footer-content">
+                        <a href="https://cookieguard.app" target="_blank" rel="noopener" class="cg-prefs-logo" style="display: none;">
+                            Powered by <strong>CookieGuard</strong>
+                        </a>
+                        <button class="cg-save-btn">Save settings</button>
+                    </div>
                 </div>
 
             </div>
         `;
 
         box.appendChild(modal);
+
+        // Show logo if enabled
+        if (cfg.show_logo) {
+            const logo = modal.querySelector(".cg-prefs-logo");
+            if (logo) logo.style.display = "block";
+        }
 
         // Update cookie policy text if provided
         const policyText = modal.querySelector("#cg-policy-text");

@@ -424,8 +424,23 @@
     
     .cg-hub-footer {
         margin-top: 20px;
+    }
+    .cg-hub-footer-content {
         display: flex;
-        justify-content: flex-end;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .cg-prefs-logo {
+        font-size: 0.75rem;
+        color: #6b7280;
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    .cg-prefs-logo:hover {
+        color: #111827;
+    }
+    .cg-prefs-logo strong {
+        font-weight: 600;
     }
     .cg-save-btn {
         background: ${cfg.accept_bg_color};
