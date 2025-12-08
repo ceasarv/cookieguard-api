@@ -193,33 +193,38 @@
         box-shadow: ${cfg.shadow_custom || getShadow(cfg.shadow)};
         display: flex;
         justify-content: space-between;
-        align-items: flex-end;
+        align-items: center;
         gap: 20px;
         max-width: 100%;
-        text-align: ${cfg.text_align};
         position: relative;
         padding-bottom: 32px;
     }
 
-    .cg-content {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+    .cg-left {
+        flex: 1;
+        text-align: ${cfg.text_align};
+    }
+
+    .cg-right {
+        flex-shrink: 0;
     }
 
     .cg-title {
         font-weight: 700;
         font-size: 1.05rem;
+        margin-bottom: 6px;
     }
 
     .cg-desc {
         font-size: 0.95rem;
         max-width: 600px;
+        margin-bottom: ${cfg.spacing_px}px;
     }
 
     .cg-buttons {
         display: flex;
         gap: ${cfg.spacing_px}px;
+        justify-content: center;
         flex-wrap: wrap;
     }
 
@@ -426,13 +431,16 @@
         box.innerHTML = `
       ${cfg.overlay_enabled ? `<div class="cg-overlay"></div>` : ""}
       <div class="cg-bar">
-        <div class="cg-content">
+        <div class="cg-left">
           <div class="cg-title">${cfg.title}</div>
           <div class="cg-desc">${cfg.description}</div>
+        </div>
+
+        <div class="cg-right">
           <div class="cg-buttons">
             <button class="cg-btn cg-accept">${cfg.accept_text}</button>
             ${cfg.has_reject_button ? `<button class="cg-btn cg-reject">${cfg.reject_text}</button>` : ""}
-            ${cfg.show_preferences_button ? `<button class="cg-btn cg-prefs">${cfg.prefs_text}</button>` : ""}
+            ${cfg.show_prefs ? `<button class="cg-btn cg-prefs">${cfg.prefs_text}</button>` : ""}
           </div>
         </div>
 
