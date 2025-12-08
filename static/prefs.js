@@ -152,7 +152,21 @@
                 marketing: modal.querySelector("#cg-marketing").checked,
             };
 
-            localStorage.setItem("cookieguard_prefs", JSON.stringify(prefs));
+            // Store consent using the blocker
+            if (window.CookieGuardBlocker) {
+                window.CookieGuardBlocker.setConsent('preferences_saved', prefs);
+
+                // Enable consented categories
+                const enabledCategories = ['necessary']; // Always enable necessary
+                Object.keys(prefs).forEach(cat => {
+                    if (prefs[cat]) enabledCategories.push(cat);
+                });
+                window.CookieGuardBlocker.enableScripts(enabledCategories);
+
+                // Delete rejected categories
+                const rejectedCategories = Object.keys(prefs).filter(cat => !prefs[cat]);
+                window.CookieGuardBlocker.deleteCookies(rejectedCategories);
+            }
 
             logConsent("preferences_saved", prefs);
 

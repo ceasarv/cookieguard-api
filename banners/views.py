@@ -74,11 +74,25 @@ def banner_metadata(request, embed_key: str):
 		return JsonResponse({"error": "No active banner found"}, status=404)
 
 	serialized = BannerSerializer(banner).data
+
+	# Get cookie categories for this domain
+	categories_qs = domain.cookie_categories.all()
+	categories_config = {}
+	for cat in categories_qs:
+		if cat.category not in categories_config:
+			categories_config[cat.category] = []
+		categories_config[cat.category].append({
+			'name': cat.script_name,
+			'pattern': cat.script_pattern,
+			'description': cat.description
+		})
+
 	return JsonResponse({
 		"domain": domain.url,
 		"user": user.email if user else None,
 		"subscription_status": status,
-		"banner": serialized
+		"banner": serialized,
+		"categories": categories_config
 	})
 
 

@@ -5,7 +5,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Domain
+from .models import Domain, CookieCategory
+from .serializers import CookieCategorySerializer
 
 URL_RE = re.compile(r"^(https?://)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(/.*)?$", re.I)
 
@@ -116,3 +117,43 @@ def run_scan(request, id):
 	d.last_scan_at = timezone.now()
 	d.save(update_fields=["last_scan_at", "updated_at"])
 	return Response({"status": "queued", "last_scan_at": d.last_scan_at})
+
+
+@api_view(["GET", "POST"])
+def cookie_categories_list(request, domain_id):
+	"""List or create cookie categories for a domain"""
+	domain = _get_owned(request, id=domain_id)
+
+	if request.method == "GET":
+		categories = CookieCategory.objects.filter(domain=domain).order_by("category", "script_name")
+		serializer = CookieCategorySerializer(categories, many=True)
+		return Response(serializer.data)
+
+	# POST - create new category
+	serializer = CookieCategorySerializer(data=request.data)
+	if serializer.is_valid():
+		serializer.save(domain=domain)
+		return Response(serializer.data, status=status.HTTP_201_CREATED)
+	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+def cookie_category_detail(request, domain_id, category_id):
+	"""Retrieve, update, or delete a cookie category"""
+	domain = _get_owned(request, id=domain_id)
+	category = get_object_or_404(CookieCategory, id=category_id, domain=domain)
+
+	if request.method == "GET":
+		serializer = CookieCategorySerializer(category)
+		return Response(serializer.data)
+
+	if request.method == "PATCH":
+		serializer = CookieCategorySerializer(category, data=request.data, partial=True)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(serializer.data)
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+	# DELETE
+	category.delete()
+	return Response(status=status.HTTP_204_NO_CONTENT)

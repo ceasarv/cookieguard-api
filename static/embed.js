@@ -26,33 +26,157 @@
             .catch(err => console.warn("[CookieGuard] log failed:", err));
     }
 
-    // --- Shadow root host ---
-    const host = document.createElement("div");
-    host.style.position = "fixed";
-    host.style.zIndex = cfg.z_index || "999999";
-    host.style.bottom = "0";
-    host.style.left = "0";
-    host.style.width = "100vw";
-    host.style.margin = "0";
-    document.body.appendChild(host);
+    // --- Cookie Blocking System ---
+    const CookieGuardBlocker = {
+        getConsent: function() {
+            const stored = localStorage.getItem('cookieguard_consent_' + cfg.embed_key);
+            return stored ? JSON.parse(stored) : null;
+        },
 
-    const shadow = host.attachShadow({mode: "open"});
+        setConsent: function(choice, prefs = null) {
+            const consent = {
+                choice: choice,
+                preferences: prefs,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('cookieguard_consent_' + cfg.embed_key, JSON.stringify(consent));
+            return consent;
+        },
 
-    // --- Shadow helper ---
-    function getShadow(shadowType) {
-        const shadows = {
-            'none': 'none',
-            'sm': '0 1px 2px rgba(0,0,0,0.05)',
-            'md': '0 4px 6px rgba(0,0,0,0.1)',
-            'lg': '0 10px 15px rgba(0,0,0,0.1)',
-            'xl': '0 20px 25px rgba(0,0,0,0.15)',
-        };
-        return shadows[shadowType] || shadows['md'];
-    }
+        hasConsent: function(category) {
+            const consent = this.getConsent();
+            if (!consent) return false;
 
-    // --- Styles ---
-    const style = document.createElement("style");
-    style.textContent = `
+            if (consent.choice === 'accept_all') return true;
+            if (consent.choice === 'reject_all') return category === 'necessary';
+            if (consent.choice === 'preferences_saved' && consent.preferences) {
+                return consent.preferences[category] === true;
+            }
+            return false;
+        },
+
+        blockScripts: function() {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.tagName === 'SCRIPT' && node.hasAttribute('data-cookiecategory')) {
+                            const category = node.getAttribute('data-cookiecategory');
+                            if (!this.hasConsent(category)) {
+                                node.type = 'text/plain';
+                                node.setAttribute('data-blocked', 'true');
+                            }
+                        }
+                    });
+                });
+            });
+
+            observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true
+            });
+
+            // Block existing scripts
+            document.addEventListener('DOMContentLoaded', () => {
+                const scripts = document.querySelectorAll('script[data-cookiecategory]');
+                scripts.forEach(script => {
+                    const category = script.getAttribute('data-cookiecategory');
+                    if (!this.hasConsent(category)) {
+                        script.type = 'text/plain';
+                        script.setAttribute('data-blocked', 'true');
+                    }
+                });
+            });
+        },
+
+        enableScripts: function(categories) {
+            const blockedScripts = document.querySelectorAll('script[data-blocked="true"]');
+            blockedScripts.forEach(script => {
+                const category = script.getAttribute('data-cookiecategory');
+
+                if (categories.includes(category)) {
+                    script.type = 'text/javascript';
+                    script.removeAttribute('data-blocked');
+
+                    // Clone and replace to execute
+                    const newScript = document.createElement('script');
+                    Array.from(script.attributes).forEach(attr => {
+                        newScript.setAttribute(attr.name, attr.value);
+                    });
+                    newScript.textContent = script.textContent;
+                    if (script.src) newScript.src = script.src;
+                    script.parentNode.replaceChild(newScript, script);
+                }
+            });
+        },
+
+        deleteCookies: function(categories) {
+            if (!cfg.categories) return;
+
+            categories.forEach(category => {
+                const patterns = cfg.categories[category] || [];
+                patterns.forEach(item => {
+                    this.deleteCookiesByPattern(item.pattern);
+                });
+            });
+        },
+
+        deleteCookiesByPattern: function(pattern) {
+            const cookies = document.cookie.split(';');
+            cookies.forEach(cookie => {
+                const cookieName = cookie.split('=')[0].trim();
+                if (cookieName.includes(pattern) || pattern.includes(cookieName)) {
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${window.location.hostname}`;
+                }
+            });
+        }
+    };
+
+    // Expose blocker for prefs.js
+    window.CookieGuardBlocker = CookieGuardBlocker;
+
+    // Start blocking scripts immediately
+    CookieGuardBlocker.blockScripts();
+
+    // --- Global state ---
+    let host = null;
+    let shadow = null;
+    let box = null;
+
+    // --- Banner creation function ---
+    function createBanner() {
+        // Remove existing banner if present
+        if (host && host.parentNode) {
+            host.remove();
+        }
+
+        // --- Shadow root host ---
+        host = document.createElement("div");
+        host.style.position = "fixed";
+        host.style.zIndex = cfg.z_index || "999999";
+        host.style.bottom = "0";
+        host.style.left = "0";
+        host.style.width = "100vw";
+        host.style.margin = "0";
+        document.body.appendChild(host);
+
+        shadow = host.attachShadow({mode: "open"});
+
+        // --- Shadow helper ---
+        function getShadow(shadowType) {
+            const shadows = {
+                'none': 'none',
+                'sm': '0 1px 2px rgba(0,0,0,0.05)',
+                'md': '0 4px 6px rgba(0,0,0,0.1)',
+                'lg': '0 10px 15px rgba(0,0,0,0.1)',
+                'xl': '0 20px 25px rgba(0,0,0,0.15)',
+            };
+            return shadows[shadowType] || shadows['md'];
+        }
+
+        // --- Styles ---
+        const style = document.createElement("style");
+        style.textContent = `
     .cg-wrap {
         font-family: system-ui, sans-serif;
         line-height: 1.45;
@@ -291,10 +415,10 @@
     .cg-save-btn:hover { opacity: .9; }
     `;
 
-    // --- Banner HTML ---
-    const box = document.createElement("div");
-    box.className = "cg-wrap";
-    box.innerHTML = `
+        // --- Banner HTML ---
+        box = document.createElement("div");
+        box.className = "cg-wrap";
+        box.innerHTML = `
       ${cfg.overlay_enabled ? `<div class="cg-overlay"></div>` : ""}
       <div class="cg-bar">
         <div class="cg-content">
@@ -316,30 +440,36 @@
       </div>
     `;
 
-    shadow.appendChild(style);
-    shadow.appendChild(box);
+        shadow.appendChild(style);
+        shadow.appendChild(box);
 
-    // --- Event handling ---
-    shadow.querySelector(".cg-accept").onclick = () => {
-        logConsent("accept_all");
-        host.remove();
-    };
-
-    const rejectBtn = shadow.querySelector(".cg-reject");
-    if (rejectBtn) {
-        rejectBtn.onclick = () => {
-            logConsent("reject_all");
+        // --- Event handling ---
+        shadow.querySelector(".cg-accept").onclick = () => {
+            CookieGuardBlocker.setConsent("accept_all");
+            CookieGuardBlocker.enableScripts(['necessary', 'preferences', 'analytics', 'marketing']);
+            logConsent("accept_all");
             host.remove();
         };
+
+        const rejectBtn = shadow.querySelector(".cg-reject");
+        if (rejectBtn) {
+            rejectBtn.onclick = () => {
+                CookieGuardBlocker.setConsent("reject_all");
+                CookieGuardBlocker.deleteCookies(['preferences', 'analytics', 'marketing']);
+                logConsent("reject_all");
+                host.remove();
+            };
+        }
+
+        const prefsBtn = shadow.querySelector(".cg-prefs");
+        if (prefsBtn) {
+            prefsBtn.onclick = () => {
+                loadPrefsModule();
+            };
+        }
     }
 
-    const prefsBtn = shadow.querySelector(".cg-prefs");
-    if (prefsBtn) {
-        prefsBtn.onclick = () => {
-            loadPrefsModule();
-        };
-    }
-
+    // --- Load preferences module ---
     function loadPrefsModule() {
         if (window.CookieGuardPrefsLoaded) {
             window.CookieGuardOpenPrefs(cfg, shadow, box, logConsent);
@@ -353,6 +483,70 @@
             window.CookieGuardOpenPrefs(cfg, shadow, box, logConsent);
         };
         document.head.appendChild(s);
+    }
+
+    // --- Public API Functions ---
+    function openPreferences() {
+        if (!shadow || !box) {
+            console.warn("[CookieGuard] Cannot open preferences - banner not initialized");
+            return;
+        }
+        loadPrefsModule();
+    }
+
+    function reopenBanner() {
+        createBanner();
+    }
+
+    function clearConsent() {
+        localStorage.removeItem('cookieguard_consent_' + cfg.embed_key);
+        console.log("[CookieGuard] Consent cleared");
+    }
+
+    function updateConsent(choice, prefs = null) {
+        CookieGuardBlocker.setConsent(choice, prefs);
+
+        if (choice === 'accept_all') {
+            CookieGuardBlocker.enableScripts(['necessary', 'preferences', 'analytics', 'marketing']);
+        } else if (choice === 'reject_all') {
+            CookieGuardBlocker.deleteCookies(['preferences', 'analytics', 'marketing']);
+        } else if (choice === 'preferences_saved' && prefs) {
+            const enabledCategories = ['necessary'];
+            Object.keys(prefs).forEach(cat => {
+                if (prefs[cat]) enabledCategories.push(cat);
+            });
+            CookieGuardBlocker.enableScripts(enabledCategories);
+
+            const rejectedCategories = Object.keys(prefs).filter(cat => !prefs[cat]);
+            CookieGuardBlocker.deleteCookies(rejectedCategories);
+        }
+
+        logConsent(choice, prefs);
+
+        // Close banner if open
+        if (host && host.parentNode) {
+            host.remove();
+        }
+    }
+
+    // --- Expose global API ---
+    window.CookieGuard = {
+        hasConsent: (category) => CookieGuardBlocker.hasConsent(category),
+        getConsent: () => CookieGuardBlocker.getConsent(),
+        openPreferences: openPreferences,
+        reopenBanner: reopenBanner,
+        clearConsent: clearConsent,
+        updateConsent: updateConsent
+    };
+
+    // --- Initialize ---
+    const existingConsent = CookieGuardBlocker.getConsent();
+    if (!existingConsent) {
+        // No consent yet - show banner
+        createBanner();
+    } else {
+        console.log("[CookieGuard] Existing consent found:", existingConsent);
+        // Banner won't show, but API is still available
     }
 
 })();

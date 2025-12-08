@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Domain
+from .models import Domain, CookieCategory
 import re
 
 URL_RE = re.compile(r"^(https?://)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(/.*)?$", re.I)
@@ -24,3 +24,10 @@ class DomainSerializer(serializers.ModelSerializer):
 		if hasattr(req.user, "account"):
 			validated["account"] = req.user.account
 		return super().create(validated)
+
+
+class CookieCategorySerializer(serializers.ModelSerializer):
+	class Meta:
+		model = CookieCategory
+		fields = ["id", "domain", "category", "script_name", "script_pattern", "description", "created_at"]
+		read_only_fields = ["id", "created_at"]
