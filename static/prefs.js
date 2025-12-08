@@ -42,7 +42,7 @@
                     <!-- TAB: POLICY -->
                     <div class="cg-tab-panel hidden" data-panel="policy">
                         <h3>Cookie Policy</h3>
-                        <p>Your website owner can link their full cookie policy here.</p>
+                        <p id="cg-policy-text">Your website owner can link their full cookie policy here.</p>
                     </div>
 
                 </div>
@@ -56,6 +56,12 @@
         `;
 
         box.appendChild(modal);
+
+        // Update cookie policy text if provided
+        const policyText = modal.querySelector("#cg-policy-text");
+        if (cfg.cookie_policy_text && cfg.cookie_policy_text.trim()) {
+            policyText.textContent = cfg.cookie_policy_text;
+        }
 
         // Populate categories dynamically
         const categoriesContainer = modal.querySelector("#categories-container");

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python manage.py collectstatic:*)",
-      "Bash(pip freeze:*)"
+      "Bash(pip freeze:*)",
+      "Bash(python manage.py makemigrations:*)",
+      "Bash(python manage.py migrate:*)"
     ],
     "deny": [],
     "ask": []

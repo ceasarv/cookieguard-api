@@ -39,6 +39,7 @@ class BannerSerializer(serializers.ModelSerializer):
 			"accept_text",
 			"reject_text",
 			"prefs_text",
+			"cookie_policy_text",
 
 			# Theme / background
 			"theme",

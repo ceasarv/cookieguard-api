@@ -141,6 +141,7 @@ def embed_script(request, embed_key: str):
 		"accept_text": banner.accept_text,
 		"reject_text": banner.reject_text,
 		"prefs_text": banner.prefs_text,
+		"cookie_policy_text": banner.cookie_policy_text,
 		"background_color": banner.background_color,
 		"background_opacity": banner.background_opacity,
 		"text_color": "#111827" if banner.theme == "light" else "#ffffff",
