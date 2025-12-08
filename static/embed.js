@@ -191,22 +191,13 @@
         border: ${cfg.border_width_px}px solid ${cfg.border_color};
         padding: ${cfg.padding_y_px}px ${cfg.padding_x_px}px;
         box-shadow: ${cfg.shadow_custom || getShadow(cfg.shadow)};
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 20px;
         max-width: 100%;
         position: relative;
         padding-bottom: 32px;
     }
 
     .cg-left {
-        flex: 1;
-        text-align: ${cfg.text_align};
-    }
-
-    .cg-right {
-        flex-shrink: 0;
+        width: 100%;
     }
 
     .cg-title {
@@ -224,15 +215,15 @@
     .cg-buttons {
         display: flex;
         gap: ${cfg.spacing_px}px;
-        justify-content: center;
         flex-wrap: wrap;
+        margin-top: ${cfg.spacing_px}px;
     }
 
     .cg-btn {
         cursor: pointer;
-        padding: 10px 18px;
+        padding: 8px 14px;
+        border: none;
         font-size: 0.9rem;
-        font-weight: 500;
         transition: opacity 0.15s ease;
     }
 
@@ -434,9 +425,6 @@
         <div class="cg-left">
           <div class="cg-title">${cfg.title}</div>
           <div class="cg-desc">${cfg.description}</div>
-        </div>
-
-        <div class="cg-right">
           <div class="cg-buttons">
             <button class="cg-btn cg-accept">${cfg.accept_text}</button>
             ${cfg.has_reject_button ? `<button class="cg-btn cg-reject">${cfg.reject_text}</button>` : ""}
@@ -444,8 +432,7 @@
           </div>
         </div>
 
-        ${cfg.show_cookieguard_logo ? `
-        <div class="cg-footer">
+        ${cfg.show_logo ? `<div class="cg-footer">
           <a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer'>
             Powered by CookieGuard
           </a>
