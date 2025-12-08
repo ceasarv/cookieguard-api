@@ -30,80 +30,7 @@
 
                     <!-- TAB: CATEGORIES -->
                     <div class="cg-tab-panel" data-panel="categories">
-                        
-                        <!-- CATEGORY: Preferences -->
-                        <div class="cg-category">
-                            <div class="cg-cat-row">
-                                <div>
-                                    <h3>Preferences</h3>
-                                    <p>Preference cookies enable the website to remember information such as region, theme, or custom settings.</p>
-                                </div>
-                                <label class="cg-switch">
-                                    <input id="cg-prefers" type="checkbox">
-                                    <span class="cg-slider"></span>
-                                </label>
-                            </div>
-                            <details>
-                                <summary>Intercom</summary>
-                                <p>Used for customer chat and preference memory.</p>
-                            </details>
-                        </div>
-
-                        <!-- CATEGORY: Analytics -->
-                        <div class="cg-category">
-                            <div class="cg-cat-row">
-                                <div>
-                                    <h3>Analytical cookies</h3>
-                                    <p>Analytical cookies help improve the website by collecting usage data.</p>
-                                </div>
-                                <label class="cg-switch">
-                                    <input id="cg-analytics" type="checkbox">
-                                    <span class="cg-slider"></span>
-                                </label>
-                            </div>
-
-                            <details>
-                                <summary>Google Analytics</summary>
-                                <p>Collects anonymous visitor statistics.</p>
-                            </details>
-
-                            <details>
-                                <summary>Hotjar</summary>
-                                <p>Heatmaps and session recordings.</p>
-                            </details>
-
-                            <details>
-                                <summary>Microsoft Clarity</summary>
-                                <p>Session replay analytics.</p>
-                            </details>
-
-                        </div>
-
-                        <!-- CATEGORY: Marketing -->
-                        <div class="cg-category">
-                            <div class="cg-cat-row">
-                                <div>
-                                    <h3>Marketing cookies</h3>
-                                    <p>Used for advertising and retargeting.</p>
-                                </div>
-                                <label class="cg-switch">
-                                    <input id="cg-marketing" type="checkbox">
-                                    <span class="cg-slider"></span>
-                                </label>
-                            </div>
-
-                            <details>
-                                <summary>Facebook Pixel</summary>
-                                <p>Tracks conversions and remarketing.</p>
-                            </details>
-
-                            <details>
-                                <summary>TikTok Pixel</summary>
-                                <p>Remarketing and analytics.</p>
-                            </details>
-
-                        </div>
-
+                        <div id="categories-container"></div>
                     </div>
 
                     <!-- TAB: PERSONAL DATA -->
@@ -130,6 +57,59 @@
 
         box.appendChild(modal);
 
+        // Populate categories dynamically
+        const categoriesContainer = modal.querySelector("#categories-container");
+        const categoryLabels = {
+            necessary: 'Strictly Necessary Cookies',
+            preferences: 'Preference Cookies',
+            analytics: 'Analytical Cookies',
+            marketing: 'Marketing Cookies'
+        };
+        const categoryDescriptions = {
+            necessary: 'Essential for the website to function properly. These cannot be disabled.',
+            preferences: 'Remember your settings and preferences for a better experience.',
+            analytics: 'Help us understand how you use our website to improve it.',
+            marketing: 'Used to show you relevant advertisements and track campaign performance.'
+        };
+
+        // Always show all 4 categories
+        const allCategories = ['necessary', 'preferences', 'analytics', 'marketing'];
+
+        allCategories.forEach(categoryKey => {
+            const scripts = cfg.categories && cfg.categories[categoryKey] || [];
+
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'cg-category';
+
+            let scriptsHTML = '';
+            if (scripts.length > 0) {
+                scriptsHTML = scripts.map(script => `
+                    <details>
+                        <summary>${script.name}</summary>
+                        <p>${script.description || 'No description provided.'}</p>
+                    </details>
+                `).join('');
+            }
+
+            const isNecessary = categoryKey === 'necessary';
+
+            categoryDiv.innerHTML = `
+                <div class="cg-cat-row">
+                    <div>
+                        <h3>${categoryLabels[categoryKey]}</h3>
+                        <p>${categoryDescriptions[categoryKey]}</p>
+                    </div>
+                    <label class="cg-switch">
+                        <input id="cg-${categoryKey}" type="checkbox" ${isNecessary ? 'checked disabled' : ''}>
+                        <span class="cg-slider"></span>
+                    </label>
+                </div>
+                ${scriptsHTML}
+            `;
+
+            categoriesContainer.appendChild(categoryDiv);
+        });
+
         // tab handlers
         modal.querySelectorAll(".cg-tab").forEach(tab => {
             tab.onclick = () => {
@@ -147,9 +127,10 @@
         modal.querySelector(".cg-save-btn").onclick = () => {
 
             const prefs = {
-                preferences: modal.querySelector("#cg-prefers").checked,
-                analytics: modal.querySelector("#cg-analytics").checked,
-                marketing: modal.querySelector("#cg-marketing").checked,
+                necessary: true, // Always true
+                preferences: modal.querySelector("#cg-preferences")?.checked || false,
+                analytics: modal.querySelector("#cg-analytics")?.checked || false,
+                marketing: modal.querySelector("#cg-marketing")?.checked || false,
             };
 
             // Store consent using the blocker
