@@ -38,6 +38,7 @@ INSTALLED_APPS = [
 	'django.contrib.staticfiles',
 	'corsheaders',
 	'rest_framework',
+	'drf_spectacular',
 	'users',
 	'scanner',
 	'billing',
@@ -96,7 +97,23 @@ REST_FRAMEWORK = {
 	),
 	"DEFAULT_RENDERER_CLASSES": (
 		"rest_framework.renderers.JSONRenderer",
-	)
+	),
+	'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+	'TITLE': 'CookieGuard API',
+	'DESCRIPTION': 'GDPR-compliant cookie consent management platform with automatic script blocking and granular consent controls.',
+	'VERSION': '1.0.0',
+	'SERVE_INCLUDE_SCHEMA': False,
+	'COMPONENT_SPLIT_REQUEST': True,
+	'SCHEMA_PATH_PREFIX': '/api/',
+	'SWAGGER_UI_SETTINGS': {
+		'deepLinking': True,
+		'persistAuthorization': True,
+		'displayOperationId': True,
+	},
+	'SECURITY': [{'Bearer': []}],
 }
 
 ROOT_URLCONF = 'cookieguard.urls'
