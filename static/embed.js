@@ -493,6 +493,7 @@
         if (rejectBtn) {
             rejectBtn.onclick = () => {
                 CookieGuardBlocker.setConsent("reject_all");
+                CookieGuardBlocker.enableScripts(['necessary']);
                 CookieGuardBlocker.deleteCookies(['preferences', 'analytics', 'marketing']);
                 logConsent("reject_all");
                 host.remove();
@@ -547,6 +548,7 @@
         if (choice === 'accept_all') {
             CookieGuardBlocker.enableScripts(['necessary', 'preferences', 'analytics', 'marketing']);
         } else if (choice === 'reject_all') {
+            CookieGuardBlocker.enableScripts(['necessary']);
             CookieGuardBlocker.deleteCookies(['preferences', 'analytics', 'marketing']);
         } else if (choice === 'preferences_saved' && prefs) {
             const enabledCategories = ['necessary'];
@@ -584,7 +586,19 @@
         createBanner();
     } else {
         console.log("[CookieGuard] Existing consent found:", existingConsent);
-        // Banner won't show, but API is still available
+
+        // Enable scripts based on existing consent
+        if (existingConsent.choice === 'accept_all') {
+            CookieGuardBlocker.enableScripts(['necessary', 'preferences', 'analytics', 'marketing']);
+        } else if (existingConsent.choice === 'reject_all') {
+            CookieGuardBlocker.enableScripts(['necessary']);
+        } else if (existingConsent.choice === 'preferences_saved' && existingConsent.preferences) {
+            const enabledCategories = ['necessary'];
+            Object.keys(existingConsent.preferences).forEach(cat => {
+                if (existingConsent.preferences[cat]) enabledCategories.push(cat);
+            });
+            CookieGuardBlocker.enableScripts(enabledCategories);
+        }
     }
 
 })();
