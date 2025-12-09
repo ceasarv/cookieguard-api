@@ -154,31 +154,30 @@ def register(request):
 
 	user = serializer.save()
 
-	# 📨 Notify admin (only in production)
-	if getattr(settings, "ENV", "").lower() == "production":
-		try:
-			resend.api_key = os.environ.get("RESEND_API_KEY")
-			sender_email = "support@resend.dev"
-			receiver_email = os.environ.get("EMAIL_RECEIVER")
+	# 📨 Notify admin
+	try:
+		resend.api_key = os.environ.get("RESEND_API_KEY")
+		sender_email = "support@resend.dev"
+		receiver_email = os.environ.get("EMAIL_RECEIVER")
 
-			subject = f"[New Signup] {user.email}"
-			html_body = f"""
-				<h2>🎉 New User Registration</h2>
-				<p><strong>Email:</strong> {user.email}</p>
-				<p><strong>User ID:</strong> {user.id}</p>
-				<p>This user just signed up via CookieGuard.</p>
-			"""
+		subject = f"[New Signup] {user.email}"
+		html_body = f"""
+			<h2>🎉 New User Registration</h2>
+			<p><strong>Email:</strong> {user.email}</p>
+			<p><strong>User ID:</strong> {user.id}</p>
+			<p>This user just signed up via CookieGuard.</p>
+		"""
 
-			resend.Emails.send({
-				"from": sender_email,
-				"to": receiver_email,
-				"subject": subject,
-				"html": html_body,
-			})
+		resend.Emails.send({
+			"from": sender_email,
+			"to": receiver_email,
+			"subject": subject,
+			"html": html_body,
+		})
 
-			print(f"[Signup Email Sent ✅] Notified for {user.email}")
-		except Exception as email_err:
-			print("[Signup Email Error ❌]", email_err)
+		print(f"[Signup Email Sent ✅] Notified for {user.email}")
+	except Exception as email_err:
+		print("[Signup Email Error ❌]", email_err)
 
 	return Response({
 		"message": "User created successfully",
@@ -279,7 +278,7 @@ def google_login(request):
 	user, created = User.objects.get_or_create(email=email, defaults=defaults)
 
 	# 📨 Notify admin if a brand-new Google account was created
-	if created and getattr(settings, "ENV", "").lower() == "production":
+	if created:
 		try:
 			import os, resend
 			resend.api_key = os.environ.get("RESEND_API_KEY")
