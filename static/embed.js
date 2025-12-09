@@ -154,10 +154,58 @@
         host = document.createElement("div");
         host.style.position = "fixed";
         host.style.zIndex = cfg.z_index || "999999";
-        host.style.bottom = "0";
-        host.style.left = "0";
-        host.style.width = "100vw";
         host.style.margin = "0";
+
+        // Position based on type and position
+        const type = cfg.type || "bar";
+        const position = cfg.position || "bottom";
+
+        if (type === "modal") {
+            // Modal: centered
+            host.style.inset = "0";
+            host.style.display = "flex";
+            host.style.alignItems = "center";
+            host.style.justifyContent = "center";
+        } else if (type === "bar") {
+            // Bar: full width at top or bottom
+            host.style.left = "0";
+            host.style.width = "100vw";
+            if (position === "top") {
+                host.style.top = "0";
+            } else {
+                host.style.bottom = "0";
+            }
+        } else if (type === "panel") {
+            // Panel: positioned in corner or side
+            const gap = "20px"; // Gap from edges
+
+            if (position === "bottom-left") {
+                host.style.bottom = gap;
+                host.style.left = gap;
+            } else if (position === "bottom-right") {
+                host.style.bottom = gap;
+                host.style.right = gap;
+            } else if (position === "top-left") {
+                host.style.top = gap;
+                host.style.left = gap;
+            } else if (position === "top-right") {
+                host.style.top = gap;
+                host.style.right = gap;
+            } else if (position === "bottom") {
+                host.style.bottom = gap;
+                host.style.left = "50%";
+                host.style.transform = "translateX(-50%)";
+            } else if (position === "top") {
+                host.style.top = gap;
+                host.style.left = "50%";
+                host.style.transform = "translateX(-50%)";
+            } else if (position === "center") {
+                host.style.top = "50%";
+                host.style.left = "50%";
+                host.style.transform = "translate(-50%, -50%)";
+            }
+        }
+
         document.body.appendChild(host);
 
         shadow = host.attachShadow({mode: "open"});
@@ -191,9 +239,18 @@
         border: ${cfg.border_width_px}px solid ${cfg.border_color};
         padding: ${cfg.padding_y_px}px ${cfg.padding_x_px}px;
         box-shadow: ${cfg.shadow_custom || getShadow(cfg.shadow)};
-        max-width: 100%;
         position: relative;
         padding-bottom: 32px;
+        ${cfg.type === 'panel' ? `
+            max-width: 420px;
+            width: 100%;
+        ` : cfg.type === 'modal' ? `
+            max-width: 500px;
+            width: 90%;
+            margin: 0 auto;
+        ` : `
+            max-width: 100%;
+        `}
     }
 
     .cg-left {
@@ -283,6 +340,25 @@
         }
     }
 
+    /* Responsive adjustments */
+    @media (max-width: 640px) {
+        .cg-bar {
+            ${cfg.type === 'panel' ? `
+                max-width: calc(100vw - 40px) !important;
+            ` : ''}
+        }
+        .cg-desc {
+            font-size: 0.85rem;
+        }
+        .cg-buttons {
+            flex-direction: column;
+        }
+        .cg-btn {
+            width: 100%;
+            text-align: center;
+        }
+    }
+
     /* Overlay */
     .cg-overlay {
         position: fixed;
@@ -290,8 +366,16 @@
         background: ${cfg.overlay_color};
         opacity: ${cfg.overlay_opacity};
         backdrop-filter: blur(${cfg.overlay_blur_px}px);
-        z-index: -1;
+        ${cfg.type === 'modal' ? 'z-index: 1;' : 'z-index: -1;'}
     }
+
+    /* For modal type, ensure banner is above overlay */
+    ${cfg.type === 'modal' ? `
+        .cg-bar {
+            position: relative;
+            z-index: 2;
+        }
+    ` : ''}
 
     /* Modal styles */
     .cg-modal {
