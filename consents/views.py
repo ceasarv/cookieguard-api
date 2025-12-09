@@ -57,10 +57,15 @@ def log_consent(request):
 		"accept_all": "accept",
 		"reject_all": "reject",
 		"preferences_opened": "prefs",
+		"preferences_saved": "prefs",  # When user saves custom preferences
 	}
 	choice = data.get("choice")
 	if choice in choice_map:
 		data["choice"] = choice_map[choice]
+
+	# 3.5️⃣ Map "preferences" to "categories" field
+	if "preferences" in data:
+		data["categories"] = data.pop("preferences")
 
 	# 4️⃣ Capture IP + UA
 	xff = request.META.get("HTTP_X_FORWARDED_FOR")
