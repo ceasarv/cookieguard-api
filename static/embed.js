@@ -245,7 +245,7 @@
             max-width: 420px;
             width: 100%;
         ` : cfg.type === 'modal' ? `
-            max-width: 500px;
+            max-width: 650px;
             width: 90%;
             margin: 0 auto;
         ` : `
@@ -392,11 +392,11 @@
         background: white;
         color: #111827;
         width: 90%;
-        max-width: 800px;
-        max-height: 90vh;
+        max-width: 640px;
+        max-height: 85vh;
         overflow-y: auto;
         border-radius: 18px;
-        padding: 32px;
+        padding: 24px;
         box-shadow: 0 18px 40px rgba(0,0,0,.25);
         animation: cgFadeIn .25s ease;
     }
