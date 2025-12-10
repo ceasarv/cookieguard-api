@@ -450,11 +450,13 @@
         padding: 10px 6px;
         cursor: pointer;
         font-size: .95rem;
+        color: #374151;
         opacity: .6;
     }
     .cg-tab.active {
         opacity: 1;
         font-weight: 600;
+        color: #111827;
         border-bottom: 2px solid #333;
     }
     
