@@ -469,7 +469,25 @@
     .cg-cat-row {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .cg-cat-row > div:first-child {
+        flex: 1;
+    }
+
+    .cg-cat-row h3 {
+        margin: 0 0 4px 0;
+        color: #111827;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .cg-cat-row p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.85rem;
     }
     
     .cg-switch {
