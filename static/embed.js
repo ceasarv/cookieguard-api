@@ -169,7 +169,8 @@
         } else if (type === "bar") {
             // Bar: full width at top or bottom
             host.style.left = "0";
-            host.style.width = "100vw";
+            host.style.right = "0";
+            host.style.width = "100%";
             if (position === "top") {
                 host.style.top = "0";
             } else {
@@ -225,6 +226,10 @@
         // --- Styles ---
         const style = document.createElement("style");
         style.textContent = `
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
     .cg-wrap {
         font-family: system-ui, sans-serif;
         line-height: 1.45;
