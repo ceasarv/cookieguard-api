@@ -97,7 +97,7 @@ def banner_metadata(request, embed_key: str):
 
 
 # Used to bypass subscription checks during testing
-TEST_EMBED_KEYS = ['X9oOsVr4IYqLTSsjqaEtZg0J9OuYsByF']
+TEST_EMBED_KEYS = ['X9oOsVr4IYqLTSsjqaEtZg0J9OuYsByF', '3-uK4ofsHmlqNq0LIsZaTmY37OJN_HmD']
 
 
 @permission_classes([AllowAny])
