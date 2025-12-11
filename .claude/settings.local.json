@@ -4,7 +4,8 @@
       "Bash(python manage.py collectstatic:*)",
       "Bash(pip freeze:*)",
       "Bash(python manage.py makemigrations:*)",
-      "Bash(python manage.py migrate:*)"
+      "Bash(python manage.py migrate:*)",
+      "Bash(dir /s /b \"C:\\Users\\ceasa\\Desktop\\Code\\CookieGuard-API-Django\\*.html\")"
     ],
     "deny": [],
     "ask": []
