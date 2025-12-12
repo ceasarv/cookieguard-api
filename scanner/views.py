@@ -99,7 +99,7 @@ def trigger_scan(request):
 		url = f"https://{url}"
 
 	opts = {
-		"max_pages": int(data.get("max_pages", 10)),
+		"max_pages": int(data.get("max_pages", 20)),
 		"max_depth": int(data.get("max_depth", 2)),
 		"include_subdomains": bool(data.get("include_subdomains", False)),
 		"dual_pass": bool(data.get("dual_pass", False)),
