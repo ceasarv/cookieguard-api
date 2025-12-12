@@ -60,11 +60,11 @@ async def click_accept_if_present(page):
 
 async def crawl_site(
 		url: str,
-		max_pages: int = 20,
+		max_pages: int = 10,
 		max_depth: int = 2,
 		include_subdomains: bool = False,
 		dual_pass: bool = False,
-		pause_ms_between_pages: int = 400
+		pause_ms_between_pages: int = 300
 ):
 	"""Crawl limited pages, aggregate cookies on one context."""
 	t0 = time.perf_counter()

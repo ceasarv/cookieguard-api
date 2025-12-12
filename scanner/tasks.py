@@ -29,11 +29,11 @@ def run_scan_task(
 		self,
 		url: str,
 		mode: str = "single",  # "single" or "crawl"
-		max_pages: int = 20,
+		max_pages: int = 10,
 		max_depth: int = 2,
 		include_subdomains: bool = False,
 		dual_pass: bool = False,
-		pause_ms_between_pages: int = 600,
+		pause_ms_between_pages: int = 300,
 ):
 	"""
 	Celery entrypoint for scans.

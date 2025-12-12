@@ -82,6 +82,58 @@ async def get_browser() -> Browser:
         return _browser
 
 
+# Heavy domains to block (ads, analytics, video, chat widgets - not needed for cookie scanning)
+BLOCKED_DOMAINS = [
+    "googletagmanager.com",
+    "google-analytics.com",
+    "doubleclick.net",
+    "googlesyndication.com",
+    "googleadservices.com",
+    "facebook.net",
+    "facebook.com/tr",
+    "connect.facebook.net",
+    "analytics.tiktok.com",
+    "snap.licdn.com",
+    "ads.linkedin.com",
+    "bat.bing.com",
+    "clarity.ms",
+    "hotjar.com",
+    "fullstory.com",
+    "heapanalytics.com",
+    "segment.io",
+    "segment.com",
+    "mixpanel.com",
+    "amplitude.com",
+    "intercom.io",
+    "intercomcdn.com",
+    "drift.com",
+    "crisp.chat",
+    "zendesk.com",
+    "zopim.com",
+    "tawk.to",
+    "livechatinc.com",
+    "youtube.com",
+    "youtube-nocookie.com",
+    "vimeo.com",
+    "wistia.com",
+    "vidyard.com",
+    "player.vimeo.com",
+    "sentry.io",
+    "bugsnag.com",
+    "logrocket.com",
+    "newrelic.com",
+    "nr-data.net",
+    "optimizely.com",
+    "abtasty.com",
+    "crazyegg.com",
+    "mouseflow.com",
+    "trustpilot.com",
+    "recaptcha.net",
+    "gstatic.com/recaptcha",
+    "hcaptcha.com",
+]
+
+
 async def get_context():
     """
     Get a new browser context from the shared browser.
@@ -91,13 +143,25 @@ async def get_context():
     context = await browser.new_context(
         user_agent=USER_AGENT,
         viewport=VIEWPORT,
-        # Block images and fonts to save memory/bandwidth
         bypass_csp=True,
     )
 
-    # Block unnecessary resources
-    await context.route("**/*.{png,jpg,jpeg,gif,svg,webp,ico,woff,woff2,ttf,eot}",
-                        lambda route: route.abort())
+    # Block images, fonts, media, and other heavy resources
+    await context.route(
+        "**/*.{png,jpg,jpeg,gif,svg,webp,ico,woff,woff2,ttf,eot,mp4,webm,mp3,wav,ogg,avi,mov,pdf}",
+        lambda route: route.abort()
+    )
+
+    # Block heavy third-party domains (ads, analytics, video, chat)
+    async def block_heavy_domains(route):
+        url = route.request.url.lower()
+        for domain in BLOCKED_DOMAINS:
+            if domain in url:
+                await route.abort()
+                return
+        await route.continue_()
+
+    await context.route("**/*", block_heavy_domains)
 
     return context
 

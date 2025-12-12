@@ -5,7 +5,9 @@
       "Bash(pip freeze:*)",
       "Bash(python manage.py makemigrations:*)",
       "Bash(python manage.py migrate:*)",
-      "Bash(dir /s /b \"C:\\Users\\ceasa\\Desktop\\Code\\CookieGuard-API-Django\\*.html\")"
+      "Bash(dir /s /b \"C:\\Users\\ceasa\\Desktop\\Code\\CookieGuard-API-Django\\*.html\")",
+      "Bash(dir /b:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
