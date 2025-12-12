@@ -242,10 +242,10 @@
         color: ${cfg.text_color || '#111827'};
         border-radius: ${cfg.border_radius_px}px;
         border: ${cfg.border_width_px}px solid ${cfg.border_color};
-        padding: ${cfg.padding_y_px}px ${cfg.padding_x_px}px;
+        padding: ${cfg.padding_y_px + 8}px ${cfg.padding_x_px}px;
         box-shadow: ${cfg.shadow_custom || getShadow(cfg.shadow)};
         position: relative;
-        padding-bottom: 32px;
+        padding-bottom: 40px;
         ${cfg.type === 'panel' ? `
             max-width: 420px;
             width: 100%;
@@ -254,7 +254,9 @@
             width: 90%;
             margin: 0 auto;
         ` : `
-            max-width: 100%;
+            max-width: 1000px;
+            width: 100%;
+            margin: 0 auto;
         `}
     }
 
