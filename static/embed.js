@@ -254,9 +254,11 @@
             width: 90%;
             margin: 0 auto;
         ` : `
-            max-width: 1000px;
+            max-width: 1400px;
             width: 100%;
             margin: 0 auto;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
         `}
     }
 
