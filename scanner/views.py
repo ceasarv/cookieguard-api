@@ -9,8 +9,71 @@ from rest_framework.permissions import IsAuthenticated
 from billing.permissions import HasPaidPlan
 from celery.result import AsyncResult
 import json, os, resend
+from urllib.parse import urlparse
 
 from users.permissions import NotBlocked
+
+# Blocked domains - social media, adult sites, and other popular sites we don't allow scanning
+BLOCKED_DOMAINS = [
+	# Social media
+	"reddit.com",
+	"twitter.com",
+	"x.com",
+	"facebook.com",
+	"fb.com",
+	"instagram.com",
+	"tiktok.com",
+	"snapchat.com",
+	"linkedin.com",
+	"pinterest.com",
+	"tumblr.com",
+	"discord.com",
+	"twitch.tv",
+	"youtube.com",
+	"whatsapp.com",
+	"telegram.org",
+	"t.me",
+	# Gaming
+	"roblox.com",
+	"steam.com",
+	"steampowered.com",
+	"epicgames.com",
+	"xbox.com",
+	"playstation.com",
+	# Adult sites
+	"pornhub.com",
+	"xvideos.com",
+	"xnxx.com",
+	"xhamster.com",
+	"onlyfans.com",
+	"chaturbate.com",
+	"stripchat.com",
+	# Other major platforms
+	"google.com",
+	"amazon.com",
+	"apple.com",
+	"microsoft.com",
+	"netflix.com",
+	"spotify.com",
+	"github.com",
+	"gitlab.com",
+]
+
+def is_blocked_url(url: str) -> bool:
+	"""Check if a URL belongs to a blocked domain."""
+	try:
+		parsed = urlparse(url)
+		hostname = parsed.netloc.lower()
+		# Remove www. prefix if present
+		if hostname.startswith("www."):
+			hostname = hostname[4:]
+		# Check if hostname matches or is a subdomain of any blocked domain
+		for blocked in BLOCKED_DOMAINS:
+			if hostname == blocked or hostname.endswith("." + blocked):
+				return True
+		return False
+	except Exception:
+		return False
 
 
 @sync_and_async_middleware
@@ -24,6 +87,10 @@ async def scan_view(request):
 		url = body.get("url")
 		if not url:
 			return JsonResponse({'error': 'Missing URL'}, status=400)
+
+		# Check if URL is blocked
+		if is_blocked_url(url):
+			return JsonResponse({'error': 'This domain cannot be scanned. Social media, gaming platforms, and other major sites are not supported.'}, status=403)
 
 		# 🕵️‍♂️ Send an email right away when a scan starts (before or after running)
 		try:
@@ -97,6 +164,10 @@ def trigger_scan(request):
 	# normalize
 	if not url.startswith(("http://", "https://")):
 		url = f"https://{url}"
+
+	# Check if URL is blocked
+	if is_blocked_url(url):
+		return Response({"error": "This domain cannot be scanned. Social media, gaming platforms, and other major sites are not supported."}, status=403)
 
 	opts = {
 		"max_pages": int(data.get("max_pages", 20)),
