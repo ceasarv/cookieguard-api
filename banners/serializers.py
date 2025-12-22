@@ -83,6 +83,14 @@ class BannerSerializer(serializers.ModelSerializer):
 			"shadow",
 			"shadow_custom",
 
+			# Loading animation gradient
+			"gradient_enabled",
+			"gradient_color_1",
+			"gradient_color_2",
+			"gradient_color_3",
+			"gradient_speed",
+			"gradient_persist",
+
 			# Versioning / meta
 			"version",
 			"created_at",

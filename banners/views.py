@@ -10,8 +10,33 @@ from .models import Banner
 from .serializers import BannerSerializer
 from domains.models import Domain
 from billing.models import BillingProfile
+from billing.guards import get_user_plan, can_use_feature
 
 log = logging.getLogger(__name__)
+
+
+# Fields that free tier users can customize
+FREE_TIER_FIELDS = {
+	"name", "domains", "is_active", "type", "position",
+	"title", "description", "accept_text", "reject_text", "prefs_text",
+	"theme", "has_reject_button", "show_preferences_button",
+}
+
+# Fields that require Pro+ plan (full customization)
+PREMIUM_FIELDS = {
+	"background_color", "background_opacity", "text_color",
+	"accept_bg_color", "accept_text_color", "accept_border_color",
+	"accept_border_width_px", "accept_border_radius_px",
+	"reject_bg_color", "reject_text_color", "reject_border_color",
+	"reject_border_width_px", "reject_border_radius_px",
+	"prefs_bg_color", "prefs_text_color", "prefs_border_color",
+	"prefs_border_width_px", "prefs_border_radius_px",
+	"border_radius_px", "border_color", "border_width_px",
+	"padding_x_px", "padding_y_px", "spacing_px", "text_align",
+	"shadow", "shadow_custom", "z_index", "width", "height",
+	"overlay_enabled", "overlay_color", "overlay_opacity", "overlay_blur_px",
+	"cookie_policy_text",
+}
 
 
 class BannerListCreateView(generics.ListCreateAPIView):
@@ -45,6 +70,27 @@ class BannerListCreateView(generics.ListCreateAPIView):
 			next_num = max(numbers) + 1 if numbers else 1
 			name = f"Banner {next_num:02d}"
 
+		# Skip plan checks in development mode
+		is_dev = getattr(settings, "DJANGO_ENV", "production") == "development"
+
+		# Check plan limitations
+		plan = get_user_plan(self.request.user)
+		is_free = plan == "free" and not is_dev
+
+		# Free tier: force branding to show
+		if is_free:
+			serializer.validated_data["show_cookieguard_logo"] = True
+
+		# Free tier: check for premium field usage
+		if is_free:
+			used_premium = set(self.request.data.keys()) & PREMIUM_FIELDS
+			if used_premium:
+				raise ValidationError({
+					"detail": f"Your Free plan does not allow customizing: {', '.join(used_premium)}. Upgrade to Pro for full customization.",
+					"code": "premium_features_required",
+					"premium_fields": list(used_premium),
+				})
+
 		banner = serializer.save(name=name)
 		banner.domains.set(domains)
 
@@ -54,6 +100,36 @@ class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 	def get_queryset(self):
 		return Banner.objects.filter(domains__user=self.request.user).distinct()
+
+	def perform_update(self, serializer):
+		# Skip plan checks in development mode
+		is_dev = getattr(settings, "DJANGO_ENV", "production") == "development"
+
+		plan = get_user_plan(self.request.user)
+		is_free = plan == "free" and not is_dev
+
+		# Free tier: force branding to show
+		if is_free:
+			serializer.validated_data["show_cookieguard_logo"] = True
+
+			# Block if trying to hide branding
+			if self.request.data.get("show_cookieguard_logo") is False:
+				raise ValidationError({
+					"detail": "Removing CookieGuard branding requires a Pro or Agency plan.",
+					"code": "premium_feature_required",
+				})
+
+		# Free tier: check for premium field usage
+		if is_free:
+			used_premium = set(self.request.data.keys()) & PREMIUM_FIELDS
+			if used_premium:
+				raise ValidationError({
+					"detail": f"Your Free plan does not allow customizing: {', '.join(used_premium)}. Upgrade to Pro for full customization.",
+					"code": "premium_features_required",
+					"premium_fields": list(used_premium),
+				})
+
+		serializer.save()
 
 
 # --- 🧠 New endpoint for metadata only ---
@@ -109,8 +185,11 @@ def embed_script(request, embed_key: str):
 
 	user = domain.user
 
-	# Skip subscription check for test embed keys OR test domains
+	# Skip subscription check for test embed keys, test domains, or local dev
+	host = request.get_host().lower()
+	is_local = 'localhost' in host or '127.0.0.1' in host or 'ngrok' in host
 	is_test = (
+			is_local or
 			embed_key in TEST_EMBED_KEYS or
 			'cookieguard-test-site.vercel.app' in domain.url.lower()
 	)
@@ -180,13 +259,26 @@ def embed_script(request, embed_key: str):
 		"position": banner.position,
 		"type": banner.type,
 		"api_url": API_URL,
+		"gradient_enabled": banner.gradient_enabled,
+		"gradient_color_1": banner.gradient_color_1,
+		"gradient_color_2": banner.gradient_color_2,
+		"gradient_color_3": banner.gradient_color_3,
+		"gradient_speed": banner.gradient_speed,
+		"gradient_persist": banner.gradient_persist,
 	}
+
+	if is_local:
+		# Use the same host that served the script request
+		protocol = "https" if "ngrok" in host else "http"
+		STATIC_URL = f"{protocol}://{request.get_host()}/static/embed.js"
+	else:
+		STATIC_URL = "https://api.cookieguard.app/static/embed.js?v=1.0.0"
 
 	js = f"""
     (function() {{
         window.CookieGuardConfig = {json.dumps(cfg)};
         var s = document.createElement('script');
-        s.src = 'https://api.cookieguard.app/static/embed.js?v=1.0.0';
+        s.src = '{STATIC_URL}';
         s.async = true;
         document.head.appendChild(s);
     }})();

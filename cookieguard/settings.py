@@ -84,7 +84,8 @@ ALLOWED_HOSTS = [
 	"localhost",
 	"127.0.0.1",
 	"cookieguard-api.onrender.com",
-	"api.cookieguard.app"
+	"api.cookieguard.app",
+	".ngrok-free.app",
 ]
 
 REST_FRAMEWORK = {

@@ -7,7 +7,14 @@
       "Bash(python manage.py migrate:*)",
       "Bash(dir /s /b \"C:\\Users\\ceasa\\Desktop\\Code\\CookieGuard-API-Django\\*.html\")",
       "Bash(dir /b:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(pip install:*)",
+      "Bash(set:*)",
+      "Bash(python manage.py check:*)",
+      "Bash(echo:*)",
+      "Bash(dir \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\staticfiles\\cookieguard-logo.svg\")"
     ],
     "deny": [],
     "ask": []

@@ -1,8 +1,12 @@
 # scanner/tasks.py
 from celery import shared_task
 import asyncio
+import logging
+from django.utils import timezone
 from scanner.scan import scan_site  # single-page scan
 from scanner.crawler import crawl_site  # multi-page crawl
+
+log = logging.getLogger(__name__)
 
 
 def _run_async(coro):
@@ -63,3 +67,46 @@ def run_scan_task(
 	else:
 		# default: single-page scan
 		return _run_async(scan_site(url))
+
+
+@shared_task
+def run_scheduled_scans(frequency: str):
+	"""
+	Run auto-scans for users whose plan includes this scan frequency.
+
+	Args:
+		frequency: "daily" for Agency plan, "weekly" for Pro plan
+	"""
+	from billing.plans import PLAN_LIMITS
+	from domains.models import Domain
+
+	# Find plans that have this scan frequency
+	eligible_plans = [
+		plan for plan, limits in PLAN_LIMITS.items()
+		if limits.get("auto_scan") == frequency
+	]
+
+	if not eligible_plans:
+		log.info(f"No plans with auto_scan={frequency}")
+		return {"scanned": 0}
+
+	# Get all domains for users on those plans with active subscriptions
+	domains = Domain.objects.filter(
+		user__billing_profile__plan_tier__in=eligible_plans,
+		user__billing_profile__subscription_status__in=["active", "trialing"]
+	).select_related("user")
+
+	scanned_count = 0
+	for domain in domains:
+		try:
+			# Queue scan for this domain
+			run_scan_task.delay(domain.url)
+			domain.last_scan_at = timezone.now()
+			domain.save(update_fields=["last_scan_at"])
+			scanned_count += 1
+			log.info(f"Queued auto-scan for {domain.url} (user: {domain.user.email})")
+		except Exception as e:
+			log.error(f"Failed to queue scan for {domain.url}: {e}")
+
+	log.info(f"Scheduled {scanned_count} {frequency} scans for {eligible_plans} plans")
+	return {"scanned": scanned_count, "frequency": frequency, "plans": eligible_plans}

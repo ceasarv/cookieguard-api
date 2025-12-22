@@ -111,6 +111,14 @@ class Banner(models.Model):
 	shadow = models.CharField(max_length=10, choices=SHADOW_CHOICES, default="md")
 	shadow_custom = models.CharField(max_length=200, blank=True, null=True)
 
+	# ---------- Loading animation gradient ----------
+	gradient_enabled = models.BooleanField(default=True)
+	gradient_color_1 = models.CharField(max_length=20, default="#6366f1")  # Indigo
+	gradient_color_2 = models.CharField(max_length=20, default="#8b5cf6")  # Violet
+	gradient_color_3 = models.CharField(max_length=20, default="#d946ef")  # Fuchsia
+	gradient_speed = models.FloatField(default=3.0)  # 1-10 scale (1=slowest, 10=fastest)
+	gradient_persist = models.BooleanField(default=False)  # Keep gradient animating indefinitely
+
 	# ---------- Versioning ----------
 	version = models.PositiveIntegerField(default=1)
 	created_at = models.DateTimeField(auto_now_add=True)

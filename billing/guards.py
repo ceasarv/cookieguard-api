@@ -6,10 +6,10 @@ from .models import BillingProfile
 
 
 def has_billing_access(user) -> bool:
+	"""Check if user has an active paid subscription."""
 	if not user or not user.is_authenticated:
 		return False
 	try:
-		# Corrected access from .billing_profiles to .billing_profile
 		bp: Optional[BillingProfile] = user.billing_profile
 		if not bp:
 			return False
@@ -42,3 +42,50 @@ def has_billing_access(user) -> bool:
 
 	# Any unknown status -> be safe, block
 	return False
+
+
+def get_user_plan(user) -> str:
+	"""
+	Get the user's current effective plan tier.
+	Returns 'free' if user is not authenticated or has no active subscription.
+	"""
+	if not user or not user.is_authenticated:
+		return "free"
+	try:
+		bp: Optional[BillingProfile] = user.billing_profile
+		if not bp:
+			return "free"
+	except BillingProfile.DoesNotExist:
+		return "free"
+
+	return bp.effective_plan_tier
+
+
+def get_plan_limits(user) -> dict:
+	"""Get the plan limits for the user's current tier."""
+	from billing.plans import get_plan_config
+	return get_plan_config(get_user_plan(user))
+
+
+def can_use_feature(user, feature: str) -> bool:
+	"""Check if the user's plan allows a specific feature."""
+	from billing.plans import has_feature
+	return has_feature(get_user_plan(user), feature)
+
+
+def get_domain_limit(user) -> int:
+	"""Get the maximum number of domains allowed for the user's plan."""
+	from billing.plans import get_plan_limit
+	return get_plan_limit(get_user_plan(user), "domains")
+
+
+def get_pageview_limit(user) -> int:
+	"""Get the monthly pageview limit for the user's plan."""
+	from billing.plans import get_plan_limit
+	return get_plan_limit(get_user_plan(user), "pageviews_per_month")
+
+
+def get_effective_pageview_limit(user) -> int:
+	"""Get the pageview limit including 15% grace period."""
+	from billing.plans import get_effective_pageview_limit as _get_effective
+	return _get_effective(get_user_plan(user))

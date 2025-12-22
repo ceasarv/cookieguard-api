@@ -5,8 +5,19 @@
         return;
     }
 
+    // Check if we're in dev mode (script served from localhost or ngrok)
+    const scriptSrc = document.querySelector('script[data-cookieguard]')?.src || '';
+    const isDevMode = scriptSrc.includes('localhost')
+        || scriptSrc.includes('127.0.0.1')
+        || scriptSrc.includes('ngrok');
+
+    // Get base URL for static assets (extract origin and use /static/)
+    const scriptOrigin = scriptSrc ? new URL(scriptSrc).origin : 'https://api.cookieguard.app';
+    const staticUrl = scriptOrigin + '/static';
+
     console.log("[CookieGuard DEBUG] Loaded config:", window.CookieGuardConfig);
     console.log("[CookieGuard] ✅ Banner loaded:", cfg);
+    if (isDevMode) console.log("[CookieGuard] Dev mode - localStorage disabled");
 
     function logConsent(choice, prefs = null) {
         const payload = {
@@ -29,6 +40,7 @@
     // --- Cookie Blocking System ---
     const CookieGuardBlocker = {
         getConsent: function() {
+            if (isDevMode) return null; // Always show banner in dev mode
             const stored = localStorage.getItem('cookieguard_consent_' + cfg.embed_key);
             return stored ? JSON.parse(stored) : null;
         },
@@ -39,7 +51,9 @@
                 preferences: prefs,
                 timestamp: new Date().toISOString()
             };
-            localStorage.setItem('cookieguard_consent_' + cfg.embed_key, JSON.stringify(consent));
+            if (!isDevMode) {
+                localStorage.setItem('cookieguard_consent_' + cfg.embed_key, JSON.stringify(consent));
+            }
             return consent;
         },
 
@@ -240,8 +254,11 @@
         background: ${cfg.background_color};
         opacity: ${cfg.background_opacity};
         color: ${cfg.text_color || '#111827'};
-        border-radius: ${cfg.border_radius_px}px;
+        border-radius: 0 0 ${cfg.border_radius_px}px ${cfg.border_radius_px}px;
         border: ${cfg.border_width_px}px solid ${cfg.border_color};
+        border-top: none;
+        border-left: none;
+        border-right: none;
         padding: ${cfg.padding_y_px + 8}px ${cfg.padding_x_px}px;
         box-shadow: ${cfg.shadow_custom || getShadow(cfg.shadow)};
         position: relative;
@@ -254,35 +271,51 @@
             width: 90%;
             margin: 0 auto;
         ` : `
-            max-width: 1400px;
             width: 100%;
-            margin: 0 auto;
             border-bottom-left-radius: 0;
             border-bottom-right-radius: 0;
         `}
     }
 
+    .cg-content {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: ${cfg.spacing_px}px;
+        ${cfg.type === 'panel' || cfg.type === 'modal' ? `
+            flex-direction: column;
+            align-items: stretch;
+        ` : `
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+        `}
+    }
+
     .cg-left {
-        width: 100%;
+        flex: 1;
+        min-width: 280px;
     }
 
     .cg-title {
         font-weight: 700;
-        font-size: 1.05rem;
+        font-size: 1.25rem;
         margin-bottom: 6px;
     }
 
     .cg-desc {
         font-size: 0.95rem;
         max-width: 600px;
-        margin-bottom: ${cfg.spacing_px}px;
+        margin: 0;
     }
 
     .cg-buttons {
         display: flex;
         gap: ${cfg.spacing_px}px;
         flex-wrap: wrap;
-        margin-top: ${cfg.spacing_px}px;
+        align-items: center;
+        flex-shrink: 0;
     }
 
     .cg-btn {
@@ -323,19 +356,22 @@
         position: absolute;
         bottom: 8px;
         right: 12px;
-        font-size: 11px;
-        opacity: 0.6;
         white-space: nowrap;
     }
 
     .cg-footer a {
-        color: inherit;
+        display: block;
         text-decoration: none;
     }
 
-    .cg-footer a:hover {
-        text-decoration: underline;
-        opacity: 1;
+    .cg-footer img {
+        height: 30px;
+        width: auto;
+        display: block;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+        border-radius: 6px;
+        padding: 5px 10px;
+        box-sizing: border-box;
     }
 
     @keyframes cgFadeIn {
@@ -349,16 +385,77 @@
         }
     }
 
+    @keyframes cgGradientShimmer {
+        0% {
+            background-position: 200% 50%;
+        }
+        100% {
+            background-position: -200% 50%;
+        }
+    }
+
+    .cg-gradient-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(
+            90deg,
+            ${cfg.gradient_color_1} 0%,
+            ${cfg.gradient_color_2} 25%,
+            ${cfg.gradient_color_3} 50%,
+            ${cfg.gradient_color_2} 75%,
+            ${cfg.gradient_color_1} 100%
+        );
+        background-size: 200% 100%;
+        animation: cgGradientShimmer ${11 - (cfg.gradient_speed || 3)}s ease-in-out infinite;
+        border-radius: 0;
+        z-index: 10;
+    }
+
+    @keyframes cgGradientSlideOut {
+        0% {
+            transform: scaleX(1);
+            transform-origin: right;
+            opacity: 1;
+        }
+        100% {
+            transform: scaleX(0);
+            transform-origin: right;
+            opacity: 0;
+        }
+    }
+
+    .cg-gradient-bar.cg-loaded {
+        animation: cgGradientSlideOut 0.8s ease-out forwards;
+    }
+
     /* Responsive adjustments */
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
         .cg-bar {
             ${cfg.type === 'panel' ? `
                 max-width: calc(100vw - 40px) !important;
             ` : ''}
         }
+        .cg-content {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .cg-left {
+            min-width: 0;
+        }
         .cg-desc {
             font-size: 0.85rem;
+            margin-bottom: ${cfg.spacing_px}px;
         }
+        .cg-buttons {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 480px) {
         .cg-buttons {
             flex-direction: column;
         }
@@ -573,19 +670,21 @@
         box.innerHTML = `
       ${cfg.overlay_enabled ? `<div class="cg-overlay"></div>` : ""}
       <div class="cg-bar">
-        <div class="cg-left">
-          <div class="cg-title">${cfg.title}</div>
-          <div class="cg-desc">${cfg.description}</div>
+        ${cfg.gradient_enabled ? `<div class="cg-gradient-bar"></div>` : ""}
+        <div class="cg-content">
+          <div class="cg-left">
+            <div class="cg-title">${cfg.title}</div>
+            <div class="cg-desc">${cfg.description}</div>
+          </div>
           <div class="cg-buttons">
             <button class="cg-btn cg-accept">${cfg.accept_text}</button>
             ${cfg.has_reject_button ? `<button class="cg-btn cg-reject">${cfg.reject_text}</button>` : ""}
             ${cfg.show_prefs ? `<button class="cg-btn cg-prefs">${cfg.prefs_text}</button>` : ""}
           </div>
         </div>
-
         ${cfg.show_logo ? `<div class="cg-footer">
           <a href='https://cookieguard.app' target='_blank' rel='noopener noreferrer'>
-            Powered by CookieGuard
+            <img src='${staticUrl}/powered-by-cookieguard.svg' alt='Powered by CookieGuard' />
           </a>
         </div>` : ""}
       </div>
@@ -593,6 +692,19 @@
 
         shadow.appendChild(style);
         shadow.appendChild(box);
+
+        // --- Stop gradient animation after load (unless persist is enabled) ---
+        // Speed is inverted: 1=slowest (10s), 10=fastest (1s)
+        if (cfg.gradient_enabled && !cfg.gradient_persist) {
+            const speedValue = cfg.gradient_speed || 3;
+            const actualSpeed = 11 - speedValue; // matches CSS animation
+            console.log("[CookieGuard] Gradient speed:", speedValue, "-> animation:", actualSpeed, "s per cycle");
+            const displayDuration = actualSpeed * 2 * 1000; // 2 cycles in ms
+            setTimeout(() => {
+                const gradientBar = shadow.querySelector(".cg-gradient-bar");
+                if (gradientBar) gradientBar.classList.add("cg-loaded");
+            }, displayDuration);
+        }
 
         // --- Event handling ---
         shadow.querySelector(".cg-accept").onclick = () => {

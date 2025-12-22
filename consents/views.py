@@ -1,13 +1,20 @@
+import csv
+import json
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
+from django.http import HttpResponse
 from django.utils import timezone
+from django.db.models import F
 from ipaddress import ip_address, IPv4Address, IPv6Address
 from .models import ConsentLog
 from .serializers import ConsentLogSerializer
 from domains.models import Domain
+from billing.models import UsageRecord
+from billing.guards import get_user_plan, get_effective_pageview_limit, get_pageview_limit
+from billing.permissions import CanExportCSV
 
 
 def truncate_ip(ip_str: str) -> str:
@@ -136,3 +143,102 @@ def list_consents(request):
 	]
 
 	return paginator.get_paginated_response(data)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def track_pageview(request):
+	"""
+	Track a pageview for usage metering.
+	Called by embed.js on each page load.
+	Pageviews are tracked per account (shared across all domains).
+	"""
+	embed_key = request.data.get("embed_key")
+	if not embed_key:
+		return Response(
+			{"success": False, "error": "embed_key required"},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	try:
+		domain = Domain.objects.select_related("user").get(embed_key=embed_key)
+	except Domain.DoesNotExist:
+		return Response(
+			{"success": False, "error": "Invalid embed_key"},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	user = domain.user
+	if not user:
+		return Response({"success": False, "error": "Domain has no owner"}, status=status.HTTP_400_BAD_REQUEST)
+
+	# Get or create this month's usage record (per account)
+	today = timezone.now().date()
+	month_start = today.replace(day=1)
+	usage, _ = UsageRecord.objects.get_or_create(
+		user=user,
+		month=month_start,
+		defaults={"pageviews": 0, "scans_used": 0}
+	)
+
+	# Increment pageviews atomically
+	UsageRecord.objects.filter(pk=usage.pk).update(pageviews=F("pageviews") + 1)
+	usage.refresh_from_db()
+
+	# Check limits with 15% grace period
+	plan = get_user_plan(user)
+	base_limit = get_pageview_limit(user)
+	effective_limit = get_effective_pageview_limit(user)
+
+	over_soft_limit = usage.pageviews > base_limit
+	over_hard_limit = usage.pageviews > effective_limit
+
+	# Send warning email at 100% (first time only)
+	if over_soft_limit and not usage.limit_warning_sent:
+		usage.limit_warning_sent = True
+		usage.save(update_fields=["limit_warning_sent"])
+		# TODO: Trigger async email task
+		# send_pageview_limit_warning.delay(user.id, usage.pageviews, base_limit)
+
+	return Response({
+		"success": True,
+		"pageviews": usage.pageviews,
+		"limit": base_limit,
+		"over_limit": over_soft_limit,
+		"blocked": over_hard_limit,
+	})
+
+
+@api_view(["GET"])
+@permission_classes([CanExportCSV])
+def export_consents_csv(request):
+	"""
+	Export consent logs as CSV.
+	Requires Pro or Agency plan.
+	"""
+	domains = Domain.objects.filter(user=request.user)
+	consents = ConsentLog.objects.filter(domain__in=domains).select_related("domain", "banner")
+
+	# Optional filtering
+	domain_id = request.query_params.get("domain")
+	if domain_id:
+		consents = consents.filter(domain_id=domain_id)
+
+	response = HttpResponse(content_type="text/csv")
+	response["Content-Disposition"] = 'attachment; filename="cookieguard_consents.csv"'
+
+	writer = csv.writer(response)
+	writer.writerow(["Date", "Domain", "Banner", "Choice", "Categories", "IP", "User Agent"])
+
+	for c in consents:
+		writer.writerow([
+			c.created_at.isoformat(),
+			c.domain.url,
+			c.banner.name if c.banner else "",
+			c.choice,
+			json.dumps(c.categories) if c.categories else "",
+			c.truncated_ip,
+			c.user_agent,
+		])
+
+	return response

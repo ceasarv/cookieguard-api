@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Domain, CookieCategory
 from .serializers import CookieCategorySerializer
+from billing.guards import get_user_plan, get_domain_limit, can_use_feature
 
 URL_RE = re.compile(r"^(https?://)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(/.*)?$", re.I)
 
@@ -37,6 +38,22 @@ def domains_list(request):
 		return Response([_serialize(d) for d in qs])
 
 	# POST (create)
+	# Check domain limit before creating
+	current_count = Domain.objects.filter(user=request.user).count()
+	domain_limit = get_domain_limit(request.user)
+	plan = get_user_plan(request.user)
+
+	if current_count >= domain_limit:
+		return Response(
+			{
+				"detail": f"Your {plan.title()} plan allows {domain_limit} domain(s). Please upgrade to add more.",
+				"code": "domain_limit_reached",
+				"current": current_count,
+				"limit": domain_limit,
+			},
+			status=status.HTTP_403_FORBIDDEN
+		)
+
 	url = (request.data.get("url") or "").strip().rstrip("/") or ""
 	if not URL_RE.match(url):
 		return Response({"url": ["Enter a valid URL like https://example.com"]}, status=400)
@@ -129,7 +146,16 @@ def cookie_categories_list(request, domain_id):
 		serializer = CookieCategorySerializer(categories, many=True)
 		return Response(serializer.data)
 
-	# POST - create new category
+	# POST - create new category (requires Pro+ plan)
+	if not can_use_feature(request.user, "cookie_categorization"):
+		return Response(
+			{
+				"detail": "Cookie categorization requires a Pro or Agency plan.",
+				"code": "feature_not_available",
+			},
+			status=status.HTTP_403_FORBIDDEN
+		)
+
 	serializer = CookieCategorySerializer(data=request.data)
 	if serializer.is_valid():
 		serializer.save(domain=domain)
@@ -146,6 +172,16 @@ def cookie_category_detail(request, domain_id, category_id):
 	if request.method == "GET":
 		serializer = CookieCategorySerializer(category)
 		return Response(serializer.data)
+
+	# PATCH and DELETE require Pro+ plan
+	if not can_use_feature(request.user, "cookie_categorization"):
+		return Response(
+			{
+				"detail": "Cookie categorization requires a Pro or Agency plan.",
+				"code": "feature_not_available",
+			},
+			status=status.HTTP_403_FORBIDDEN
+		)
 
 	if request.method == "PATCH":
 		serializer = CookieCategorySerializer(category, data=request.data, partial=True)

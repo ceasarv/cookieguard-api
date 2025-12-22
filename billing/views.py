@@ -11,7 +11,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import BillingProfile
+from .models import BillingProfile, UsageRecord
+from .guards import get_user_plan, get_plan_limits, get_domain_limit, get_pageview_limit
+from .plans import PLAN_LIMITS
 import logging
 
 log = logging.getLogger(__name__)
@@ -305,14 +307,36 @@ def public_pricing(request):
 
 @api_view(["GET"])
 def my_billing(request):
+	from domains.models import Domain
+
 	try:
 		profile = BillingProfile.objects.get(user=request.user)
 	except BillingProfile.DoesNotExist:
 		_ensure_customer(request.user)
+		plan_tier = "free"
+		limits = PLAN_LIMITS[plan_tier]
 		return Response({
-			"has_profile": False, "plan": None, "status": "inactive",
-			"on_trial": False, "trial_days_remaining": 0,
-			"current_period_end": None, "cancel_at_period_end": False,
+			"has_profile": False,
+			"plan": None,
+			"plan_tier": plan_tier,
+			"status": "inactive",
+			"on_trial": False,
+			"trial_days_remaining": 0,
+			"current_period_end": None,
+			"cancel_at_period_end": False,
+			"limits": limits,
+			"usage": {
+				"domains_used": Domain.objects.filter(user=request.user).count(),
+				"pageviews_this_month": 0,
+			},
+			"features": {
+				"can_remove_branding": limits["remove_branding"],
+				"can_export_csv": limits["csv_export"],
+				"can_use_cookie_categorization": limits["cookie_categorization"],
+				"can_view_audit_logs": limits["audit_logs"],
+				"can_manage_team": limits["team_members"] > 0,
+				"auto_scan": limits["auto_scan"],
+			},
 		})
 
 	# Need data? pull the subscription
@@ -343,7 +367,7 @@ def my_billing(request):
 					profile.price_lookup_key = items[0]["price"]["lookup_key"]
 				profile.save()
 		except Exception:
-			pass  # don’t break the UI in dev
+			pass  # don't break the UI in dev
 
 	# compute strictly-boolean on_trial + ceil days
 	on_trial = (
@@ -358,14 +382,44 @@ def my_billing(request):
 		seconds = max(0, int(delta.total_seconds()))
 		trial_days_remaining = (seconds + 86400 - 1) // 86400  # ceil
 
+	# Get effective plan tier and limits
+	plan_tier = get_user_plan(request.user)
+	limits = get_plan_limits(request.user)
+
+	# Get current usage
+	today = timezone.now().date()
+	month_start = today.replace(day=1)
+	usage = UsageRecord.objects.filter(user=request.user, month=month_start).first()
+	pageviews_this_month = usage.pageviews if usage else 0
+
 	return Response({
 		"has_profile": True,
 		"plan": profile.price_lookup_key,
+		"plan_tier": plan_tier,
 		"status": profile.subscription_status,
 		"on_trial": on_trial,
 		"trial_days_remaining": trial_days_remaining,
 		"current_period_end": cpe_iso,
 		"cancel_at_period_end": profile.cancel_at_period_end,
+		"limits": {
+			"domains": limits["domains"],
+			"pageviews_per_month": limits["pageviews_per_month"],
+			"auto_scan": limits["auto_scan"],
+			"banner_customization": limits["banner_customization"],
+			"team_members": limits["team_members"],
+		},
+		"usage": {
+			"domains_used": Domain.objects.filter(user=request.user).count(),
+			"pageviews_this_month": pageviews_this_month,
+		},
+		"features": {
+			"can_remove_branding": limits["remove_branding"],
+			"can_export_csv": limits["csv_export"],
+			"can_use_cookie_categorization": limits["cookie_categorization"],
+			"can_view_audit_logs": limits["audit_logs"],
+			"can_manage_team": limits["team_members"] > 0,
+			"auto_scan": limits["auto_scan"],
+		},
 	})
 
 
