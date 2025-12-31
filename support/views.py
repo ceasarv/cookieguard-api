@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from drf_spectacular.utils import extend_schema
 import os, resend
 
 
@@ -8,6 +9,17 @@ class HelpRequestView(APIView):
 	authentication_classes = []  # 🔥 no auth required
 	permission_classes = []  # 🔥 no auth required
 
+	@extend_schema(
+		request={"application/json": {"type": "object", "properties": {
+			"name": {"type": "string"},
+			"email": {"type": "string"},
+			"subject": {"type": "string"},
+			"message": {"type": "string"}
+		}, "required": ["message"]}},
+		responses={200: {"type": "object", "properties": {"success": {"type": "boolean"}}}},
+		description="Submit a help request (public)",
+		tags=["Support"]
+	)
 	def post(self, request):
 		name = request.data.get("name", "Anonymous")
 		email = request.data.get("email", "no-email-provided")

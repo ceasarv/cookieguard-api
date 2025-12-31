@@ -1,34 +1,26 @@
 # scanner/tasks.py
 from celery import shared_task
-import asyncio
 import logging
 from django.utils import timezone
-from scanner.scan import scan_site  # single-page scan
-from scanner.crawler import crawl_site  # multi-page crawl
+from scanner.scan_subprocess import run_scan_in_subprocess
 
 log = logging.getLogger(__name__)
 
 
-def _run_async(coro):
-	"""
-	Safely run an async coroutine from a Celery (sync) worker thread.
-	Handles missing/closed event loops (common on Windows).
-	"""
-	try:
-		loop = asyncio.get_event_loop()
-		if loop.is_closed():
-			raise RuntimeError("Event loop is closed")
-	except RuntimeError:
-		loop = asyncio.new_event_loop()
-		asyncio.set_event_loop(loop)
-	return loop.run_until_complete(coro)
+def update_progress(task, stage: str, progress: int, message: str, details: dict = None):
+	"""Update Celery task state with progress info."""
+	task.update_state(
+		state='PROGRESS',
+		meta={
+			'stage': stage,
+			'progress': progress,
+			'message': message,
+			'details': details or {},
+		}
+	)
 
 
-@shared_task(
-	bind=True,
-	autoretry_for=(Exception,),
-	retry_kwargs={"max_retries": 2, "countdown": 5},
-)
+@shared_task(bind=True)
 def run_scan_task(
 		self,
 		url: str,
@@ -38,12 +30,13 @@ def run_scan_task(
 		include_subdomains: bool = False,
 		dual_pass: bool = False,
 		pause_ms_between_pages: int = 400,
+		domain_id: str = None,  # Optional: to save results to domain
+		save_result: bool = False,  # Whether to save result to database
 ):
 	"""
 	Celery entrypoint for scans.
 
-	mode="single"  -> scanner.scan.scan_site(url)
-	mode="crawl"   -> scanner.crawler.crawl_site(url, ...)
+	Uses synchronous Playwright API which works with Celery on Windows.
 
 	Returns a JSON-serializable dict suitable for sending to the frontend.
 	"""
@@ -53,20 +46,60 @@ def run_scan_task(
 	if not url.startswith(("http://", "https://")):
 		url = f"https://{url}"
 
-	if mode == "crawl":
-		return _run_async(
-			crawl_site(
-				url=url,
-				max_pages=max_pages,
-				max_depth=max_depth,
-				include_subdomains=include_subdomains,
-				dual_pass=dual_pass,
-				pause_ms_between_pages=pause_ms_between_pages,
-			)
-		)
+	# Update progress: starting
+	update_progress(self, 'init', 10, f'Starting scan for {url}')
+
+	# Run scan in subprocess to avoid asyncio/Celery conflicts on Windows
+	update_progress(self, 'scanning', 30, 'Launching browser and loading page...')
+	result = run_scan_in_subprocess(url)
+
+	# Check for errors
+	if result.get('error'):
+		update_progress(self, 'error', 100, f'Scan failed: {result["error"]}')
 	else:
-		# default: single-page scan
-		return _run_async(scan_site(url))
+		cookies_count = len(result.get('cookies', []))
+		update_progress(self, 'complete', 100, f'Found {cookies_count} cookies')
+
+	# Save result to database if requested
+	if save_result and not result.get('error'):
+		try:
+			from scanner.models import ScanResult
+			from domains.models import Domain
+
+			domain = None
+			if domain_id:
+				try:
+					domain = Domain.objects.get(id=domain_id)
+				except Domain.DoesNotExist:
+					pass
+
+			scan_result = ScanResult.objects.create(
+				domain=domain,
+				url=url,
+				result=result,
+				cookies_found=len(result.get('cookies', [])),
+				first_party_count=result.get('firstPartyCount', 0),
+				third_party_count=result.get('thirdPartyCount', 0),
+				tracker_count=result.get('trackerCount', 0),
+				unclassified_count=result.get('unclassifiedCount', 0),
+				compliance_score=result.get('complianceScore', 0),
+				has_consent_banner=result.get('hasConsentBanner', False),
+				pages_scanned=len(result.get('pagesScanned', [])) or 1,
+				duration=result.get('duration', 0),
+				issues=result.get('issues', []),
+			)
+
+			if domain:
+				domain.last_scan_at = timezone.now()
+				domain.save(update_fields=['last_scan_at'])
+
+			# Add scan result ID to response
+			result['scan_result_id'] = str(scan_result.id)
+
+		except Exception as e:
+			log.error(f"Failed to save scan result: {e}")
+
+	return result
 
 
 @shared_task
@@ -99,8 +132,12 @@ def run_scheduled_scans(frequency: str):
 	scanned_count = 0
 	for domain in domains:
 		try:
-			# Queue scan for this domain
-			run_scan_task.delay(domain.url)
+			# Queue scan for this domain with save_result=True
+			run_scan_task.delay(
+				domain.url,
+				domain_id=str(domain.id),
+				save_result=True,
+			)
 			domain.last_scan_at = timezone.now()
 			domain.save(update_fields=["last_scan_at"])
 			scanned_count += 1

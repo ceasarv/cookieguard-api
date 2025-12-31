@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError
 from django.conf import settings
+from drf_spectacular.utils import extend_schema, extend_schema_view
 import logging, json
 
 from .models import Banner
@@ -39,6 +40,10 @@ PREMIUM_FIELDS = {
 }
 
 
+@extend_schema_view(
+	list=extend_schema(description="List all banners for the current user", tags=["Banners"]),
+	create=extend_schema(description="Create a new banner", tags=["Banners"])
+)
 class BannerListCreateView(generics.ListCreateAPIView):
 	serializer_class = BannerSerializer
 
@@ -95,6 +100,12 @@ class BannerListCreateView(generics.ListCreateAPIView):
 		banner.domains.set(domains)
 
 
+@extend_schema_view(
+	retrieve=extend_schema(description="Get banner details", tags=["Banners"]),
+	update=extend_schema(description="Update a banner", tags=["Banners"]),
+	partial_update=extend_schema(description="Partially update a banner", tags=["Banners"]),
+	destroy=extend_schema(description="Delete a banner", tags=["Banners"])
+)
 class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = BannerSerializer
 
@@ -133,6 +144,17 @@ class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # --- 🧠 New endpoint for metadata only ---
+@extend_schema(
+	responses={200: {"type": "object", "properties": {
+		"domain": {"type": "string"},
+		"user": {"type": "string", "nullable": True},
+		"subscription_status": {"type": "string", "nullable": True},
+		"banner": {"type": "object"},
+		"categories": {"type": "object"}
+	}}},
+	description="Get banner metadata for an embed key (public)",
+	tags=["Banners"]
+)
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def banner_metadata(request, embed_key: str):
@@ -176,6 +198,7 @@ def banner_metadata(request, embed_key: str):
 TEST_EMBED_KEYS = ['X9oOsVr4IYqLTSsjqaEtZg0J9OuYsByF', '3-uK4ofsHmlqNq0LIsZaTmY37OJN_HmD', 'GoTfwqm04veYlewWPrrkd8BJ7GHb3uZ8']
 
 
+@extend_schema(exclude=True)
 @permission_classes([AllowAny])
 def embed_script(request, embed_key: str):
 	try:

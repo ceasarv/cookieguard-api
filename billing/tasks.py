@@ -3,6 +3,8 @@ from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
 import logging
+import os
+import resend
 
 log = logging.getLogger(__name__)
 
@@ -132,16 +134,111 @@ def generate_user_report(user, month_start, month_end):
 
 
 @shared_task
-def send_pageview_limit_warning(user_id, current_pageviews, limit):
+def send_pageview_limit_warning(user_id, current_pageviews, limit, threshold_type="reached"):
 	"""
-	Send warning email when user reaches their pageview limit.
+	Send warning email when user approaches or reaches their pageview limit.
+
+	Args:
+		user_id: User's ID
+		current_pageviews: Current pageview count
+		limit: Base pageview limit for the plan
+		threshold_type: One of "approaching" (80%), "reached" (100%), or "blocked" (115%)
 	"""
 	from django.contrib.auth import get_user_model
+	from billing.guards import get_user_plan
 	User = get_user_model()
+
+	messages = {
+		"approaching": {
+			"subject": "You're approaching your pageview limit",
+			"emoji": "⚠️",
+			"color": "#f59e0b",
+			"message": "You've used 80% of your monthly pageview limit. Consider upgrading to avoid interruptions.",
+		},
+		"reached": {
+			"subject": "You've reached your pageview limit",
+			"emoji": "🚨",
+			"color": "#ef4444",
+			"message": "You've reached your monthly pageview limit. You're now in a 15% grace period. Upgrade to continue tracking.",
+		},
+		"blocked": {
+			"subject": "Pageview tracking paused",
+			"emoji": "⛔",
+			"color": "#dc2626",
+			"message": "You've exceeded your grace period. Pageview tracking is paused until next month or until you upgrade.",
+		},
+	}
+
+	msg = messages.get(threshold_type, messages["reached"])
 
 	try:
 		user = User.objects.get(id=user_id)
-		# TODO: Send email via Resend
-		log.info(f"Pageview limit warning for {user.email}: {current_pageviews}/{limit}")
+		percent_used = round((current_pageviews / limit) * 100, 1) if limit > 0 else 0
+		plan = get_user_plan(user)
+
+		# Send email via Resend
+		try:
+			resend.api_key = os.environ.get("RESEND_API_KEY")
+			sender_email = os.environ.get("EMAIL_SENDER", "CookieGuard <noreply@cookieguard.app>")
+
+			subject = f"{msg['emoji']} {msg['subject']}"
+			html_body = f"""
+			<div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+				<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%); padding: 20px; border-radius: 8px 8px 0 0;">
+					<h1 style="color: white; margin: 0; font-size: 24px;">CookieGuard</h1>
+				</div>
+				<div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+					<h2 style="color: {msg['color']}; margin-top: 0;">{msg['emoji']} {msg['subject']}</h2>
+					<p style="color: #374151; font-size: 16px; line-height: 1.6;">{msg['message']}</p>
+
+					<div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+						<h3 style="margin-top: 0; color: #111827;">Usage Summary</h3>
+						<p style="margin: 8px 0; color: #6b7280;">
+							<strong>Plan:</strong> {plan.capitalize()}
+						</p>
+						<p style="margin: 8px 0; color: #6b7280;">
+							<strong>Pageviews:</strong> {current_pageviews:,} / {limit:,} ({percent_used}%)
+						</p>
+						<div style="background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: 12px;">
+							<div style="background: {msg['color']}; border-radius: 4px; height: 8px; width: {min(percent_used, 100)}%;"></div>
+						</div>
+					</div>
+
+					<a href="https://app.cookieguard.app/billing"
+					   style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+						Upgrade Your Plan
+					</a>
+
+					<p style="color: #9ca3af; font-size: 14px; margin-top: 30px;">
+						If you have questions, reply to this email or contact support@cookieguard.app
+					</p>
+				</div>
+			</div>
+			"""
+
+			resend.Emails.send({
+				"from": sender_email,
+				"to": user.email,
+				"subject": subject,
+				"html": html_body,
+			})
+
+			log.info(
+				f"[Email Sent] Pageview limit warning ({threshold_type}) for {user.email}: "
+				f"{current_pageviews}/{limit} ({percent_used}%)"
+			)
+
+		except Exception as email_err:
+			log.error(f"[Email Error] Failed to send pageview warning to {user.email}: {email_err}")
+
+		return {
+			"to": user.email,
+			"threshold_type": threshold_type,
+			"current_pageviews": current_pageviews,
+			"limit": limit,
+			"percent_used": percent_used,
+		}
+
 	except User.DoesNotExist:
 		log.error(f"User {user_id} not found for pageview warning")
+		return None

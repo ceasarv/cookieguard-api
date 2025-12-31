@@ -4,10 +4,18 @@ from tldextract import extract
 import traceback
 import time
 import logging
+import uuid
+import os
+from pathlib import Path
+from django.conf import settings
 
 from scanner.browser_pool import get_context
 
 logger = logging.getLogger("scanner")
+
+# Ensure screenshot directory exists
+SCREENSHOT_DIR = getattr(settings, 'SCREENSHOT_DIR', Path(settings.BASE_DIR) / 'media' / 'screenshots')
+SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 TRACKING_PATTERNS = [
 	"_ga", "_gid", "_fbp", "ajs_", "__hstc", "intercom", "_gcl_", "hubspot", "clarity"
@@ -22,8 +30,39 @@ def classify_cookie(name):
 
 
 def get_base_domain(host):
+	if not host:
+		return ""
+	# Strip leading dots from cookie domains (e.g., ".example.com" -> "example.com")
+	host = host.lstrip(".")
+	if not host:
+		return ""
 	parts = extract(host)
 	return f"{parts.domain}.{parts.suffix}" if parts.suffix else parts.domain
+
+
+def cleanup_old_screenshots(max_keep: int = 5):
+	"""Delete oldest screenshots if there are more than max_keep in the folder."""
+	try:
+		screenshots = [
+			f for f in SCREENSHOT_DIR.iterdir()
+			if f.is_file() and f.suffix.lower() == '.png'
+		]
+		if len(screenshots) <= max_keep:
+			return
+
+		# Sort by modification time (oldest first)
+		screenshots.sort(key=lambda f: f.stat().st_mtime)
+
+		# Delete oldest ones, keeping only max_keep
+		to_delete = screenshots[:-max_keep]
+		for f in to_delete:
+			try:
+				f.unlink()
+				logger.debug("[cleanup] Deleted old screenshot: %s", f.name)
+			except Exception:
+				pass
+	except Exception as e:
+		logger.debug("[cleanup] Screenshot cleanup error: %s", e)
 
 
 async def scan_site(url: str):
@@ -61,6 +100,21 @@ async def scan_site(url: str):
 				await page.wait_for_timeout(1500)
 
 		logger.info("[scan_site] Page loaded and network idle.")
+
+		# Capture screenshot
+		screenshot_filename = None
+		try:
+			screenshot_id = str(uuid.uuid4())[:8]
+			screenshot_filename = f"{screenshot_id}.png"
+			screenshot_path = SCREENSHOT_DIR / screenshot_filename
+			await page.screenshot(path=str(screenshot_path), full_page=False)
+			logger.info("[scan_site] Screenshot saved: %s", screenshot_filename)
+			# Clean up old screenshots, keep only 5 most recent
+			cleanup_old_screenshots(max_keep=5)
+		except Exception as ss_error:
+			logger.warning("[scan_site] Screenshot failed: %s", ss_error)
+			screenshot_filename = None
+
 		html = await page.content()
 
 		logger.info("[scan_site] Getting cookies...")
@@ -124,7 +178,8 @@ async def scan_site(url: str):
 			"hasConsentBanner": has_consent_banner,
 			"complianceScore": score,
 			"issues": issues,
-			"duration": round(time.perf_counter() - start_time, 2)
+			"duration": round(time.perf_counter() - start_time, 2),
+			"screenshot": screenshot_filename,  # Filename only, frontend adds base URL
 		}
 
 		logger.info("[scan_site] Scan complete.")
@@ -142,7 +197,11 @@ async def scan_site(url: str):
 	finally:
 		# Close context but keep browser alive for next scan
 		logger.info("[scan_site] Closing context...")
-		await context.close()
+		try:
+			await context.close()
+		except Exception as close_error:
+			# Context may already be closed, that's okay
+			logger.debug("[scan_site] Context close error (safe to ignore): %s", close_error)
 
 	logger.info("[scan_site] Returning result.")
 	return result

@@ -1,0 +1,75 @@
+services:
+  # Main Django API
+  - type: web
+    name: cookieguard-api
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium --with-deps
+      python manage.py collectstatic --noinput
+      python manage.py migrate --noinput
+    startCommand: gunicorn cookieguard.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: cookieguard-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: cookieguard-redis
+          property: connectionString
+
+  # Celery Worker (for background scans)
+  # Using 2GB RAM plan ($25/mo) - can handle 2 concurrent Playwright scans
+  - type: worker
+    name: cookieguard-worker
+    runtime: python
+    plan: standard  # 2GB RAM, 1 CPU
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium --with-deps
+    startCommand: celery -A cookieguard worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: cookieguard-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: cookieguard-redis
+          property: connectionString
+
+  # Celery Beat (scheduler) - OPTIONAL
+  # Only needed if you want scheduled auto-scans and monthly reports
+  # Uncomment below if needed:
+  # - type: worker
+  #   name: cookieguard-beat
+  #   runtime: python
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: celery -A cookieguard beat --loglevel=info
+  #   envVars:
+  #     - key: DJANGO_ENV
+  #       value: production
+  #     - key: CELERY_BROKER_URL
+  #       fromService:
+  #         type: redis
+  #         name: cookieguard-redis
+  #         property: connectionString
+
+  # Redis (message broker)
+  - type: redis
+    name: cookieguard-redis
+    plan: free  # or starter for more memory
+    maxmemoryPolicy: allkeys-lru

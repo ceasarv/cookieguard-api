@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookieGuard Testing Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-green: #22c55e;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #f97316;
+            --accent-red: #ef4444;
+            --accent-yellow: #eab308;
+            --border-color: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .tab.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-card h3 {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 350px 1fr 400px;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .checkbox-group input {
+            width: auto;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-success {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn-warning {
+            background: var(--accent-orange);
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        .btn-xs {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .result-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+        }
+
+        .result-box pre {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .result-box.success {
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .result-box.error {
+            border-left: 3px solid var(--accent-red);
+        }
+
+        .users-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .user-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .user-item.selected {
+            background: rgba(59, 130, 246, 0.2);
+            border-left: 3px solid var(--accent-blue);
+        }
+
+        .user-item .email {
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+            word-break: break-all;
+        }
+
+        .user-item .meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        .badge-free { background: var(--bg-tertiary); color: var(--text-secondary); }
+        .badge-pro { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .badge-agency { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+        .badge-none { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge-active { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge-inactive { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge-trialing { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .badge-staff { background: rgba(249, 115, 22, 0.2); color: var(--accent-orange); }
+
+        .user-detail {
+            display: none;
+        }
+
+        .user-detail.show {
+            display: block;
+        }
+
+        .user-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .user-detail-header h2 {
+            margin-bottom: 0.25rem;
+        }
+
+        .user-detail-header .user-email {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-item {
+            background: var(--bg-primary);
+            padding: 0.75rem;
+            border-radius: 8px;
+        }
+
+        .info-item label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-item .value {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .domain-card {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .domain-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+
+        .domain-url {
+            font-size: 0.875rem;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .domain-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .banner-item {
+            background: var(--bg-tertiary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .banner-name {
+            font-size: 0.8rem;
+        }
+
+        .search-box {
+            margin-bottom: 1rem;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: none;
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show { display: block; }
+        .toast.success { border-left: 3px solid var(--accent-green); }
+        .toast.error { border-left: 3px solid var(--accent-red); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .quick-setup-section {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border: 1px solid var(--accent-blue);
+        }
+
+        .copy-btn {
+            background: none;
+            border: none;
+            color: var(--accent-blue);
+            cursor: pointer;
+            padding: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .copy-btn:hover {
+            color: #60a5fa;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .no-domains {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Scan Progress Styles */
+        .scan-progress {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+        }
+
+        .progress-bar-container {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-bar.complete {
+            background: var(--accent-green);
+        }
+
+        .progress-bar.error {
+            background: var(--accent-red);
+        }
+
+        .progress-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-stage {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .progress-percent {
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+
+        /* Scan History Styles */
+        .scan-history {
+            margin-top: 0.75rem;
+        }
+
+        .scan-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .scan-history-title {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .scan-item {
+            background: var(--bg-tertiary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .scan-item:hover {
+            background: var(--border-color);
+        }
+
+        .scan-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+
+        .scan-date {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .scan-score {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+        }
+
+        .score-good { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .score-medium { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .score-bad { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+
+        .scan-stats {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .scan-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Scan Detail Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.show .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.25rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .scan-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .scan-detail-stat {
+            background: var(--bg-primary);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .scan-detail-stat .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .scan-detail-stat .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .cookies-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .cookies-table th,
+        .cookies-table td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .cookies-table th {
+            background: var(--bg-primary);
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .cookies-table tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .issues-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .issues-list li {
+            padding: 0.5rem 0.75rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid var(--accent-red);
+            margin-bottom: 0.5rem;
+            border-radius: 0 6px 6px 0;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .scan-detail-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CookieGuard Testing Dashboard</h1>
+            <div class="action-btns">
+                <a href="/admin/" class="btn btn-secondary">Django Admin</a>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" data-tab="quick-actions">Quick Actions</div>
+            <div class="tab" data-tab="user-browser">User Browser</div>
+        </div>
+
+        <!-- Tab: Quick Actions -->
+        <div class="tab-content active" id="tab-quick-actions">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Users</h3>
+                    <div class="value" id="stat-total-users">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Test Users</h3>
+                    <div class="value" id="stat-test-users">{{ stats.total_test_users }}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Test Domains</h3>
+                    <div class="value" id="stat-domains">{{ stats.total_test_domains }}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Test Banners</h3>
+                    <div class="value" id="stat-banners">{{ stats.total_banners }}</div>
+                </div>
+            </div>
+
+            <!-- Quick Setup -->
+            <div class="card quick-setup-section" style="margin-bottom: 1.5rem;">
+                <h2>One-Click Quick Setup</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.875rem;">
+                    Create a complete test environment with one click: user, domain, banner, and optional scan.
+                </p>
+                <div class="grid-2" style="margin-bottom: 0;">
+                    <div>
+                        <div class="form-group">
+                            <label>Plan Tier</label>
+                            <select id="quick-plan">
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                                <option value="agency">Agency</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Domain URL</label>
+                            <input type="url" id="quick-url" placeholder="https://example.com" value="https://example.com">
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="quick-scan">
+                            <label for="quick-scan">Trigger scan immediately</label>
+                        </div>
+                        <button class="btn btn-success" onclick="quickSetup()">
+                            Create Full Test Environment
+                        </button>
+                    </div>
+                    <div>
+                        <div class="result-box" id="quick-result">
+                            <pre></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Individual Operations -->
+            <div class="grid-2">
+                <!-- Create User -->
+                <div class="card">
+                    <h2>Create Test User</h2>
+                    <div class="form-group">
+                        <label>Plan Tier</label>
+                        <select id="user-plan">
+                            <option value="free">Free</option>
+                            <option value="pro">Pro</option>
+                            <option value="agency">Agency</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="createUser()">Create User</button>
+                    <div class="result-box" id="user-result">
+                        <pre></pre>
+                    </div>
+                </div>
+
+                <!-- Create Domain -->
+                <div class="card">
+                    <h2>Create Domain</h2>
+                    <div class="form-group">
+                        <label>User ID</label>
+                        <input type="text" id="domain-user-id" placeholder="Enter user ID">
+                    </div>
+                    <div class="form-group">
+                        <label>Domain URL</label>
+                        <input type="url" id="domain-url" placeholder="https://example.com" value="https://example.com">
+                    </div>
+                    <button class="btn btn-primary" onclick="createDomain()">Create Domain</button>
+                    <div class="result-box" id="domain-result">
+                        <pre></pre>
+                    </div>
+                </div>
+
+                <!-- Create Banner -->
+                <div class="card">
+                    <h2>Create Banner</h2>
+                    <div class="form-group">
+                        <label>Domain ID</label>
+                        <input type="text" id="banner-domain-id" placeholder="Enter domain ID">
+                    </div>
+                    <button class="btn btn-primary" onclick="createBanner()">Create Banner</button>
+                    <div class="result-box" id="banner-result">
+                        <pre></pre>
+                    </div>
+                </div>
+
+                <!-- Trigger Scan -->
+                <div class="card">
+                    <h2>Trigger Scan</h2>
+                    <div class="form-group">
+                        <label>Domain ID or URL</label>
+                        <input type="text" id="scan-input" placeholder="Enter domain ID or URL">
+                    </div>
+                    <button class="btn btn-primary" onclick="triggerScan()">Trigger Scan</button>
+                    <div class="result-box" id="scan-result">
+                        <pre></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cleanup Section -->
+            <div class="card" style="margin-top: 1.5rem; border-color: var(--accent-red);">
+                <h2 style="color: var(--accent-red);">Danger Zone</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.875rem;">
+                    Delete all test users (test_*) and their associated data (domains, banners, etc.)
+                </p>
+                <button class="btn btn-danger" onclick="cleanupAll()">Delete All Test Data</button>
+                <div class="result-box" id="cleanup-result">
+                    <pre></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: User Browser -->
+        <div class="tab-content" id="tab-user-browser">
+            <div class="grid-3">
+                <!-- User List -->
+                <div class="card">
+                    <h2>All Users</h2>
+                    <div class="search-box">
+                        <input type="text" id="user-search" placeholder="Search by email..." onkeyup="debounceSearch()">
+                    </div>
+                    <div class="users-list" id="users-list">
+                        <div class="empty-state">Loading users...</div>
+                    </div>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+
+                <!-- User Detail -->
+                <div class="card">
+                    <div id="user-detail-placeholder" class="empty-state">
+                        <p>Select a user from the list to view details</p>
+                    </div>
+                    <div id="user-detail" class="user-detail">
+                        <div class="user-detail-header">
+                            <div>
+                                <h2 id="detail-email">User Details</h2>
+                                <div class="user-email" id="detail-user-id"></div>
+                            </div>
+                            <div class="action-btns">
+                                <button class="btn btn-secondary btn-sm" onclick="copyToClipboard(selectedUserId)">Copy ID</button>
+                                <button class="btn btn-danger btn-sm" id="delete-user-btn" onclick="deleteSelectedUser()">Delete</button>
+                            </div>
+                        </div>
+
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>Plan</label>
+                                <div class="value" id="detail-plan">-</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Status</label>
+                                <div class="value" id="detail-status">-</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Joined</label>
+                                <div class="value" id="detail-joined">-</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Last Login</label>
+                                <div class="value" id="detail-login">-</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Staff</label>
+                                <div class="value" id="detail-staff">-</div>
+                            </div>
+                            <div class="info-item">
+                                <label>Blocked</label>
+                                <div class="value" id="detail-blocked">-</div>
+                            </div>
+                        </div>
+
+                        <div class="section-title">Change Plan</div>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                            <select id="change-plan-tier" style="flex: 1;">
+                                <option value="free">Free</option>
+                                <option value="pro">Pro</option>
+                                <option value="agency">Agency</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" onclick="updateUserPlan()">Update</button>
+                        </div>
+
+                        <div class="section-title">Domains (<span id="detail-domain-count">0</span>)</div>
+                        <div id="detail-domains">
+                            <div class="no-domains">No domains</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions Panel -->
+                <div class="card">
+                    <h2>Quick Actions</h2>
+
+                    <div class="section-title">Add to Selected User</div>
+                    <div class="form-group">
+                        <label>Domain URL</label>
+                        <input type="text" id="action-domain-url" placeholder="https://example.com" value="https://example.com">
+                    </div>
+                    <div class="action-btns" style="margin-bottom: 1.5rem;">
+                        <button class="btn btn-primary btn-sm" onclick="addDomainToSelected()">+ Add Domain</button>
+                    </div>
+
+                    <div class="section-title">Add Banner to Domain</div>
+                    <div class="form-group">
+                        <label>Domain ID</label>
+                        <input type="text" id="action-banner-domain-id" placeholder="Select domain above">
+                    </div>
+                    <div class="action-btns" style="margin-bottom: 1.5rem;">
+                        <button class="btn btn-primary btn-sm" onclick="addBannerToSelected()">+ Add Banner</button>
+                    </div>
+
+                    <div class="section-title">Trigger Scan</div>
+                    <div class="form-group">
+                        <label>Domain ID</label>
+                        <input type="text" id="action-scan-domain-id" placeholder="Select domain above">
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn btn-warning btn-sm" onclick="scanSelectedDomain()">Scan Domain</button>
+                    </div>
+
+                    <div class="result-box" id="action-result" style="margin-top: 1.5rem;">
+                        <pre></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- Scan Detail Modal -->
+    <div class="modal-overlay" id="scan-modal" onclick="closeScanModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">Scan Details</h3>
+                <button class="modal-close" onclick="closeScanModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="scan-detail-grid">
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-cookies">-</div>
+                        <div class="label">Cookies Found</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-first-party">-</div>
+                        <div class="label">First Party</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-third-party">-</div>
+                        <div class="label">Third Party</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-trackers">-</div>
+                        <div class="label">Trackers</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-score">-</div>
+                        <div class="label">Compliance Score</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-banner">-</div>
+                        <div class="label">Consent Banner</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-pages">-</div>
+                        <div class="label">Pages Scanned</div>
+                    </div>
+                    <div class="scan-detail-stat">
+                        <div class="value" id="modal-duration">-</div>
+                        <div class="label">Duration (sec)</div>
+                    </div>
+                </div>
+
+                <div class="section-title">Issues</div>
+                <ul class="issues-list" id="modal-issues">
+                    <li>No issues found</li>
+                </ul>
+
+                <div class="section-title" style="margin-top: 1.5rem;">Cookies Breakdown</div>
+                <div style="overflow-x: auto;">
+                    <table class="cookies-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Domain</th>
+                                <th>Type</th>
+                                <th>Classification</th>
+                                <th>Expires</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-cookies-table">
+                            <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const csrfToken = '{{ csrf_token }}';
+        let selectedUserId = null;
+        let currentPage = 1;
+        let searchTimeout = null;
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+
+                if (tab.dataset.tab === 'user-browser') {
+                    loadUsers();
+                }
+            });
+        });
+
+        async function apiCall(url, method = 'POST', data = {}) {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+            };
+            if (method !== 'GET') {
+                options.body = JSON.stringify(data);
+            }
+            const response = await fetch(url, options);
+            return response.json();
+        }
+
+        function showResult(elementId, data, success = true) {
+            const box = document.getElementById(elementId);
+            box.classList.add('show');
+            box.classList.remove('success', 'error');
+            box.classList.add(success ? 'success' : 'error');
+            box.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function showToast(message, success = true) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.remove('success', 'error');
+            toast.classList.add('show', success ? 'success' : 'error');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            showToast('Copied to clipboard!');
+        }
+
+        function formatDate(isoString) {
+            if (!isoString) return 'Never';
+            const date = new Date(isoString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+
+        // Quick Actions
+        async function quickSetup() {
+            const data = {
+                plan_tier: document.getElementById('quick-plan').value,
+                url: document.getElementById('quick-url').value,
+                trigger_scan: document.getElementById('quick-scan').checked,
+            };
+            const result = await apiCall('/testing/api/quick-setup/', 'POST', data);
+            showResult('quick-result', result, result.success);
+            if (result.success) {
+                showToast('Test environment created!');
+                loadStats();
+            }
+        }
+
+        async function createUser() {
+            const data = { plan_tier: document.getElementById('user-plan').value };
+            const result = await apiCall('/testing/api/users/create/', 'POST', data);
+            showResult('user-result', result, result.success);
+            if (result.success) {
+                showToast('User created!');
+                document.getElementById('domain-user-id').value = result.user.id;
+                loadStats();
+            }
+        }
+
+        async function createDomain() {
+            const data = {
+                user_id: document.getElementById('domain-user-id').value,
+                url: document.getElementById('domain-url').value,
+            };
+            const result = await apiCall('/testing/api/domains/create/', 'POST', data);
+            showResult('domain-result', result, result.success);
+            if (result.success) {
+                showToast('Domain created!');
+                document.getElementById('banner-domain-id').value = result.domain.id;
+            }
+        }
+
+        async function createBanner() {
+            const data = { domain_id: document.getElementById('banner-domain-id').value };
+            const result = await apiCall('/testing/api/banners/create/', 'POST', data);
+            showResult('banner-result', result, result.success);
+            if (result.success) showToast('Banner created!');
+        }
+
+        async function triggerScan() {
+            const input = document.getElementById('scan-input').value;
+            const data = input.startsWith('http') ? { url: input } : { domain_id: input };
+            const result = await apiCall('/testing/api/scan/trigger/', 'POST', data);
+            showResult('scan-result', result, result.success);
+            if (result.success) {
+                showToast('Scan triggered!');
+                pollScanStatus(result.task_id, 'scan-result');
+            }
+        }
+
+        async function pollScanStatus(taskId, resultId) {
+            const checkStatus = async () => {
+                const result = await fetch(`/testing/api/scan/status/${taskId}/`).then(r => r.json());
+                showResult(resultId, result, true);
+                if (!result.ready) {
+                    setTimeout(checkStatus, 2000);
+                } else {
+                    showToast(result.status === 'SUCCESS' ? 'Scan complete!' : 'Scan failed', result.status === 'SUCCESS');
+                }
+            };
+            checkStatus();
+        }
+
+        async function cleanupAll() {
+            let result = await apiCall('/testing/api/cleanup/', 'POST', {});
+            if (!result.success && result.count !== undefined) {
+                if (!confirm(`Delete ${result.count} test users and all their data? This cannot be undone.`)) return;
+                result = await apiCall('/testing/api/cleanup/', 'POST', { confirm: true });
+            }
+            showResult('cleanup-result', result, result.success);
+            if (result.success) {
+                showToast(`Deleted ${result.deleted_count} test users!`);
+                loadStats();
+            }
+        }
+
+        // User Browser
+        async function loadUsers(page = 1) {
+            currentPage = page;
+            const search = document.getElementById('user-search').value;
+            const url = `/testing/api/users/all/?page=${page}&per_page=20&search=${encodeURIComponent(search)}`;
+            const result = await fetch(url).then(r => r.json());
+
+            if (!result.success) {
+                document.getElementById('users-list').innerHTML = '<div class="empty-state">Error loading users</div>';
+                return;
+            }
+
+            document.getElementById('stat-total-users').textContent = result.total;
+
+            if (result.users.length === 0) {
+                document.getElementById('users-list').innerHTML = '<div class="empty-state">No users found</div>';
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            for (const user of result.users) {
+                const badges = [];
+                if (user.is_staff) badges.push('<span class="badge badge-staff">STAFF</span>');
+                badges.push(`<span class="badge badge-${user.plan_tier}">${user.plan_tier.toUpperCase()}</span>`);
+
+                html += `
+                    <div class="user-item ${user.id === selectedUserId ? 'selected' : ''}" onclick="selectUser('${user.id}')">
+                        <div class="email">${user.email}</div>
+                        <div class="meta">
+                            ${badges.join(' ')}
+                            <span>${user.domain_count} domains</span>
+                        </div>
+                    </div>
+                `;
+            }
+            document.getElementById('users-list').innerHTML = html;
+
+            // Pagination
+            let paginationHtml = '';
+            if (result.total_pages > 1) {
+                if (page > 1) {
+                    paginationHtml += `<button class="btn btn-secondary btn-sm" onclick="loadUsers(${page - 1})">Prev</button>`;
+                }
+                paginationHtml += `<span style="padding: 0.5rem; color: var(--text-secondary);">Page ${page} of ${result.total_pages}</span>`;
+                if (page < result.total_pages) {
+                    paginationHtml += `<button class="btn btn-secondary btn-sm" onclick="loadUsers(${page + 1})">Next</button>`;
+                }
+            }
+            document.getElementById('pagination').innerHTML = paginationHtml;
+        }
+
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadUsers(1), 300);
+        }
+
+        async function selectUser(userId) {
+            selectedUserId = userId;
+            document.querySelectorAll('.user-item').forEach(item => item.classList.remove('selected'));
+            document.querySelector(`.user-item[onclick="selectUser('${userId}')"]`)?.classList.add('selected');
+
+            const result = await fetch(`/testing/api/users/${userId}/`).then(r => r.json());
+
+            if (!result.success) {
+                showToast('Error loading user details', false);
+                return;
+            }
+
+            document.getElementById('user-detail-placeholder').style.display = 'none';
+            document.getElementById('user-detail').classList.add('show');
+
+            const user = result.user;
+            const billing = result.billing;
+
+            document.getElementById('detail-email').textContent = user.email;
+            document.getElementById('detail-user-id').textContent = user.id;
+            document.getElementById('detail-plan').innerHTML = `<span class="badge badge-${billing?.plan_tier || 'none'}">${(billing?.plan_tier || 'none').toUpperCase()}</span>`;
+            document.getElementById('detail-status').innerHTML = `<span class="badge badge-${billing?.subscription_status || 'inactive'}">${(billing?.subscription_status || 'inactive').toUpperCase()}</span>`;
+            document.getElementById('detail-joined').textContent = formatDate(user.date_joined);
+            document.getElementById('detail-login').textContent = formatDate(user.last_login);
+            document.getElementById('detail-staff').textContent = user.is_staff ? 'Yes' : 'No';
+            document.getElementById('detail-blocked').textContent = user.is_blocked ? 'Yes' : 'No';
+
+            document.getElementById('change-plan-tier').value = billing?.plan_tier || 'free';
+
+            // Only show delete button for test users
+            document.getElementById('delete-user-btn').style.display = user.email.startsWith('test_') ? 'inline-flex' : 'none';
+
+            // Domains
+            document.getElementById('detail-domain-count').textContent = result.domains.length;
+
+            if (result.domains.length === 0) {
+                document.getElementById('detail-domains').innerHTML = '<div class="no-domains">No domains yet</div>';
+            } else {
+                let domainsHtml = '';
+                for (const domain of result.domains) {
+                    domainsHtml += `
+                        <div class="domain-card" id="domain-card-${domain.id}">
+                            <div class="domain-card-header">
+                                <div>
+                                    <div class="domain-url">${domain.url}</div>
+                                    <div class="domain-meta">
+                                        Embed: ${domain.embed_key}
+                                        <button class="copy-btn" onclick="copyToClipboard('${domain.embed_key}')">📋</button>
+                                    </div>
+                                </div>
+                                <div class="action-btns">
+                                    <button class="btn btn-warning btn-xs" onclick="scanDomain('${domain.id}', '${domain.url}')">Scan</button>
+                                    <button class="btn btn-secondary btn-xs" onclick="fillDomainId('${domain.id}')">Select</button>
+                                    <button class="btn btn-danger btn-xs" onclick="deleteDomain('${domain.id}')">Delete</button>
+                                </div>
+                            </div>
+                            ${domain.banners.map(b => `
+                                <div class="banner-item">
+                                    <span class="banner-name">${b.name} ${b.is_active ? '<span class="badge badge-active">ACTIVE</span>' : '<span class="badge badge-inactive">INACTIVE</span>'}</span>
+                                    <button class="btn btn-danger btn-xs" onclick="deleteBanner(${b.id})">Delete</button>
+                                </div>
+                            `).join('')}
+                            <div class="scan-progress" id="scan-progress-${domain.id}" style="display: none;">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar" id="progress-bar-${domain.id}" style="width: 0%"></div>
+                                </div>
+                                <div class="progress-text">
+                                    <span class="progress-stage" id="progress-stage-${domain.id}">Initializing...</span>
+                                    <span class="progress-percent" id="progress-percent-${domain.id}">0%</span>
+                                </div>
+                            </div>
+                            <div class="scan-history" id="scan-history-${domain.id}">
+                                <div class="scan-history-header">
+                                    <span class="scan-history-title">Scan History</span>
+                                    <button class="btn btn-secondary btn-xs" onclick="loadScanHistory('${domain.id}')">Refresh</button>
+                                </div>
+                                <div id="scan-history-list-${domain.id}">
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Loading...</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                document.getElementById('detail-domains').innerHTML = domainsHtml;
+
+                // Load scan history for each domain
+                for (const domain of result.domains) {
+                    loadScanHistory(domain.id);
+                }
+            }
+        }
+
+        function fillDomainId(domainId) {
+            document.getElementById('action-banner-domain-id').value = domainId;
+            document.getElementById('action-scan-domain-id').value = domainId;
+            showToast('Domain ID filled in actions panel');
+        }
+
+        async function updateUserPlan() {
+            if (!selectedUserId) return;
+            const data = {
+                user_id: selectedUserId,
+                plan_tier: document.getElementById('change-plan-tier').value,
+            };
+            const result = await apiCall('/testing/api/users/update-plan/', 'POST', data);
+            if (result.success) {
+                showToast('Plan updated!');
+                selectUser(selectedUserId);
+                loadUsers(currentPage);
+            } else {
+                showToast(result.error, false);
+            }
+        }
+
+        async function deleteSelectedUser() {
+            if (!selectedUserId) return;
+            if (!confirm('Delete this user and all their data?')) return;
+
+            const result = await apiCall('/testing/api/users/delete/', 'POST', { user_id: selectedUserId });
+            if (result.success) {
+                showToast('User deleted!');
+                selectedUserId = null;
+                document.getElementById('user-detail').classList.remove('show');
+                document.getElementById('user-detail-placeholder').style.display = 'block';
+                loadUsers(currentPage);
+                loadStats();
+            } else {
+                showToast(result.error, false);
+            }
+        }
+
+        async function addDomainToSelected() {
+            if (!selectedUserId) {
+                showToast('Select a user first', false);
+                return;
+            }
+            const data = {
+                user_id: selectedUserId,
+                url: document.getElementById('action-domain-url').value,
+            };
+            const result = await apiCall('/testing/api/domains/create/', 'POST', data);
+            showResult('action-result', result, result.success);
+            if (result.success) {
+                showToast('Domain created!');
+                selectUser(selectedUserId);
+            }
+        }
+
+        async function addBannerToSelected() {
+            const domainId = document.getElementById('action-banner-domain-id').value;
+            if (!domainId) {
+                showToast('Enter a domain ID', false);
+                return;
+            }
+            const result = await apiCall('/testing/api/banners/create/', 'POST', { domain_id: domainId });
+            showResult('action-result', result, result.success);
+            if (result.success) {
+                showToast('Banner created!');
+                if (selectedUserId) selectUser(selectedUserId);
+            }
+        }
+
+        async function scanSelectedDomain() {
+            const domainId = document.getElementById('action-scan-domain-id').value;
+            if (!domainId) {
+                showToast('Enter a domain ID', false);
+                return;
+            }
+            const result = await apiCall('/testing/api/scan/trigger/', 'POST', { domain_id: domainId });
+            showResult('action-result', result, result.success);
+            if (result.success) {
+                showToast('Scan triggered!');
+                pollScanStatus(result.task_id, 'action-result');
+            }
+        }
+
+        async function deleteDomain(domainId) {
+            if (!confirm('Delete this domain?')) return;
+            const result = await apiCall('/testing/api/domains/delete/', 'POST', { domain_id: domainId });
+            if (result.success) {
+                showToast('Domain deleted!');
+                if (selectedUserId) selectUser(selectedUserId);
+            } else {
+                showToast(result.error, false);
+            }
+        }
+
+        async function deleteBanner(bannerId) {
+            if (!confirm('Delete this banner?')) return;
+            const result = await apiCall('/testing/api/banners/delete/', 'POST', { banner_id: bannerId });
+            if (result.success) {
+                showToast('Banner deleted!');
+                if (selectedUserId) selectUser(selectedUserId);
+            } else {
+                showToast(result.error, false);
+            }
+        }
+
+        async function loadStats() {
+            const result = await fetch('/testing/api/users/all/?per_page=1').then(r => r.json());
+            if (result.success) {
+                document.getElementById('stat-total-users').textContent = result.total;
+            }
+        }
+
+        // Scan Domain with Progress
+        async function scanDomain(domainId, domainUrl) {
+            // Show progress bar
+            const progressContainer = document.getElementById(`scan-progress-${domainId}`);
+            const progressBar = document.getElementById(`progress-bar-${domainId}`);
+            const progressStage = document.getElementById(`progress-stage-${domainId}`);
+            const progressPercent = document.getElementById(`progress-percent-${domainId}`);
+
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.classList.remove('complete', 'error');
+            progressStage.textContent = 'Starting scan...';
+            progressPercent.textContent = '0%';
+
+            // Trigger scan
+            const result = await apiCall('/testing/api/scan/trigger/', 'POST', { domain_id: domainId });
+
+            if (!result.success) {
+                progressBar.classList.add('error');
+                progressStage.textContent = 'Error: ' + (result.error || 'Failed to start scan');
+                showToast('Failed to start scan', false);
+                return;
+            }
+
+            showToast('Scan started!');
+
+            // Poll for progress
+            const taskId = result.task_id;
+            const pollProgress = async () => {
+                try {
+                    const status = await fetch(`/testing/api/scan/status/${taskId}/`).then(r => r.json());
+
+                    if (status.status === 'PROGRESS') {
+                        const progress = status.progress || 0;
+                        progressBar.style.width = `${progress}%`;
+                        progressPercent.textContent = `${progress}%`;
+                        progressStage.textContent = status.message || status.stage || 'Processing...';
+
+                        // Show details if available
+                        if (status.details && status.details.pages_crawled !== undefined) {
+                            progressStage.textContent = `${status.message} (${status.details.pages_crawled} pages)`;
+                        }
+                    }
+
+                    if (!status.ready) {
+                        setTimeout(pollProgress, 1000);
+                    } else {
+                        // Scan complete
+                        progressBar.style.width = '100%';
+                        progressPercent.textContent = '100%';
+
+                        if (status.status === 'SUCCESS') {
+                            progressBar.classList.add('complete');
+                            progressStage.textContent = 'Scan complete!';
+                            showToast('Scan complete!');
+
+                            // Reload scan history
+                            setTimeout(() => {
+                                loadScanHistory(domainId);
+                                // Hide progress after a moment
+                                setTimeout(() => {
+                                    progressContainer.style.display = 'none';
+                                }, 3000);
+                            }, 500);
+                        } else {
+                            progressBar.classList.add('error');
+                            progressStage.textContent = 'Scan failed: ' + (status.error || 'Unknown error');
+                            showToast('Scan failed', false);
+                        }
+                    }
+                } catch (err) {
+                    progressBar.classList.add('error');
+                    progressStage.textContent = 'Connection error';
+                    showToast('Error checking scan status', false);
+                }
+            };
+
+            pollProgress();
+        }
+
+        // Load Scan History for Domain
+        async function loadScanHistory(domainId) {
+            const historyList = document.getElementById(`scan-history-list-${domainId}`);
+            if (!historyList) return;
+
+            try {
+                const result = await fetch(`/testing/api/scan/history/${domainId}/?per_page=5`).then(r => r.json());
+
+                if (!result.success || result.scans.length === 0) {
+                    historyList.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-secondary);">No scan history</div>';
+                    return;
+                }
+
+                let html = '';
+                for (const scan of result.scans) {
+                    const scoreClass = scan.compliance_score >= 80 ? 'score-good' :
+                                       scan.compliance_score >= 50 ? 'score-medium' : 'score-bad';
+                    const scanDate = new Date(scan.scanned_at);
+                    const dateStr = scanDate.toLocaleDateString() + ' ' + scanDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                    html += `
+                        <div class="scan-item" onclick="viewScanDetail('${scan.id}')">
+                            <div class="scan-item-header">
+                                <span class="scan-date">${dateStr}</span>
+                                <span class="scan-score ${scoreClass}">${scan.compliance_score}%</span>
+                            </div>
+                            <div class="scan-stats">
+                                <span class="scan-stat">🍪 ${scan.cookies_found} cookies</span>
+                                <span class="scan-stat">📄 ${scan.pages_scanned} pages</span>
+                                <span class="scan-stat">⏱️ ${scan.duration.toFixed(1)}s</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                historyList.innerHTML = html;
+            } catch (err) {
+                historyList.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-secondary);">Error loading history</div>';
+            }
+        }
+
+        // View Scan Detail Modal
+        async function viewScanDetail(scanId) {
+            const modal = document.getElementById('scan-modal');
+            modal.classList.add('show');
+
+            // Reset modal content
+            document.getElementById('modal-title').textContent = 'Loading...';
+            document.getElementById('modal-cookies').textContent = '-';
+            document.getElementById('modal-first-party').textContent = '-';
+            document.getElementById('modal-third-party').textContent = '-';
+            document.getElementById('modal-trackers').textContent = '-';
+            document.getElementById('modal-score').textContent = '-';
+            document.getElementById('modal-banner').textContent = '-';
+            document.getElementById('modal-pages').textContent = '-';
+            document.getElementById('modal-duration').textContent = '-';
+            document.getElementById('modal-issues').innerHTML = '<li>Loading...</li>';
+            document.getElementById('modal-cookies-table').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>';
+
+            try {
+                const result = await fetch(`/testing/api/scan/detail/${scanId}/`).then(r => r.json());
+
+                if (!result.success) {
+                    document.getElementById('modal-title').textContent = 'Error loading scan';
+                    return;
+                }
+
+                const scan = result.scan;
+                const scanDate = new Date(scan.scanned_at);
+
+                document.getElementById('modal-title').textContent = `Scan: ${scan.url} (${scanDate.toLocaleDateString()})`;
+                document.getElementById('modal-cookies').textContent = scan.cookies_found;
+                document.getElementById('modal-first-party').textContent = scan.first_party_count;
+                document.getElementById('modal-third-party').textContent = scan.third_party_count;
+                document.getElementById('modal-trackers').textContent = scan.tracker_count;
+                document.getElementById('modal-score').textContent = scan.compliance_score + '%';
+                document.getElementById('modal-banner').textContent = scan.has_consent_banner ? 'Yes' : 'No';
+                document.getElementById('modal-pages').textContent = scan.pages_scanned;
+                document.getElementById('modal-duration').textContent = scan.duration.toFixed(2);
+
+                // Score color
+                const scoreEl = document.getElementById('modal-score');
+                scoreEl.style.color = scan.compliance_score >= 80 ? 'var(--accent-green)' :
+                                      scan.compliance_score >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+
+                // Issues
+                const issues = scan.issues || [];
+                if (issues.length === 0) {
+                    document.getElementById('modal-issues').innerHTML = '<li style="background: rgba(34, 197, 94, 0.1); border-color: var(--accent-green);">No issues found</li>';
+                } else {
+                    document.getElementById('modal-issues').innerHTML = issues.map(issue => `<li>${issue}</li>`).join('');
+                }
+
+                // Cookies table
+                const cookies = scan.cookies || [];
+                if (cookies.length === 0) {
+                    // Try to get from result JSON if cookies list is empty
+                    const resultCookies = scan.result?.cookies || [];
+                    if (resultCookies.length > 0) {
+                        document.getElementById('modal-cookies-table').innerHTML = resultCookies.map(c => `
+                            <tr>
+                                <td>${c.name || '-'}</td>
+                                <td>${c.domain || '-'}</td>
+                                <td>${c.type || '-'}</td>
+                                <td>${c.classification || 'Unclassified'}</td>
+                                <td>${c.expires || '-'}</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        document.getElementById('modal-cookies-table').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No cookies data available</td></tr>';
+                    }
+                } else {
+                    document.getElementById('modal-cookies-table').innerHTML = cookies.map(c => `
+                        <tr>
+                            <td>${c.name || '-'}</td>
+                            <td>${c.domain || '-'}</td>
+                            <td>${c.type || '-'}</td>
+                            <td>${c.classification || 'Unclassified'}</td>
+                            <td>${c.expires || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                document.getElementById('modal-title').textContent = 'Error loading scan details';
+            }
+        }
+
+        // Close Modal
+        function closeScanModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('scan-modal').classList.remove('show');
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeScanModal();
+            }
+        });
+
+        // Initial load
+        loadStats();
+    </script>
+</body>
+</html>

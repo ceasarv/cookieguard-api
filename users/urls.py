@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register, login, me, google_login, onboarding_next
+from .views import register, login, me, google_login, onboarding_next, list_users
 
 urlpatterns = [
 	path("register/", register, name="register"),
@@ -7,4 +7,5 @@ urlpatterns = [
 	path("me/", me, name="me"),
 	path("google/", google_login, name="google_login"),
 	path("onboarding/next/", onboarding_next, name="onboarding_next"),
+	path("users/", list_users, name="list_users"),
 ]

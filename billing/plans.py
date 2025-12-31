@@ -2,58 +2,140 @@
 CookieGuard Plan Configuration
 
 Central configuration for all plan tiers and their limits/features.
+Limits can be overridden via environment variables.
 """
+import os
 
 PLAN_TIERS = ("free", "pro", "agency")
+
+# Environment-configurable limits with sensible defaults
+FREE_PAGEVIEWS = int(os.getenv("FREE_PAGEVIEWS", 1000))
+FREE_DOMAINS = int(os.getenv("FREE_DOMAINS", 1))
+PRO_PAGEVIEWS = int(os.getenv("PRO_PAGEVIEWS", 10000))
+PRO_DOMAINS = int(os.getenv("PRO_DOMAINS", 3))
+AGENCY_PAGEVIEWS = int(os.getenv("AGENCY_PAGEVIEWS", 50000))
+AGENCY_DOMAINS = int(os.getenv("AGENCY_DOMAINS", 10))
+PAGEVIEW_GRACE_PERCENT = float(os.getenv("PAGEVIEW_GRACE_PERCENT", 15)) / 100  # Convert 15 -> 0.15
 
 PLAN_LIMITS = {
     "free": {
         "name": "Free",
         "price_monthly": 0,
         "stripe_lookup_key": None,  # No Stripe for free tier
-        "domains": 1,
-        "pageviews_per_month": 1000,
-        "pageviews_grace_percent": 0.15,  # 15% grace = 1,150 total
+        "domains": FREE_DOMAINS,
+        "pageviews_per_month": FREE_PAGEVIEWS,
+        "pageviews_grace_percent": PAGEVIEW_GRACE_PERCENT,
         "auto_scan": None,  # manual only
         "banner_customization": "basic",
         "remove_branding": False,
         "email_reports": False,
         "csv_export": False,
-        "cookie_categorization": False,
+        "cookie_categorization": "manual",  # Must classify cookies manually
+        "auto_classification": False,  # Auto-classify from database
         "audit_logs": False,
         "team_members": 0,
+        "priority_support": False,
     },
     "pro": {
         "name": "Pro",
         "price_monthly": 12,
         "stripe_lookup_key": "cg_pro_monthly",
-        "domains": 3,
-        "pageviews_per_month": 10000,
-        "pageviews_grace_percent": 0.15,  # 15% grace = 11,500 total
-        "auto_scan": "monthly",
-        "banner_customization": "full",
-        "remove_branding": True,
-        "email_reports": True,
-        "csv_export": True,
-        "cookie_categorization": True,
-        "audit_logs": False,
-        "team_members": 0,
-    },
-    "agency": {
-        "name": "Agency",
-        "price_monthly": 30,
-        "stripe_lookup_key": "cg_agency_monthly",
-        "domains": 10,
-        "pageviews_per_month": 50000,
-        "pageviews_grace_percent": 0.15,  # 15% grace = 57,500 total
+        "domains": PRO_DOMAINS,
+        "pageviews_per_month": PRO_PAGEVIEWS,
+        "pageviews_grace_percent": PAGEVIEW_GRACE_PERCENT,
         "auto_scan": "weekly",
         "banner_customization": "full",
         "remove_branding": True,
         "email_reports": True,
         "csv_export": True,
-        "cookie_categorization": True,
+        "cookie_categorization": "auto",  # Auto-classification from database
+        "auto_classification": True,  # Auto-classify from database
+        "audit_logs": False,
+        "team_members": 0,
+        "priority_support": False,
+    },
+    "agency": {
+        "name": "Agency",
+        "price_monthly": 30,
+        "stripe_lookup_key": "cg_agency_monthly",
+        "domains": AGENCY_DOMAINS,
+        "pageviews_per_month": AGENCY_PAGEVIEWS,
+        "pageviews_grace_percent": PAGEVIEW_GRACE_PERCENT,
+        "auto_scan": "daily",
+        "banner_customization": "full",
+        "remove_branding": True,
+        "email_reports": True,
+        "csv_export": True,
+        "cookie_categorization": "auto",  # Auto-classification from database
+        "auto_classification": True,  # Auto-classify from database
         "audit_logs": True,
         "team_members": 3,
+        "priority_support": True,
+    },
+}
+
+# Human-readable feature descriptions for the pricing page
+FEATURE_DESCRIPTIONS = {
+    "domains": {
+        "name": "Domains",
+        "description": "Number of websites you can monitor",
+    },
+    "pageviews_per_month": {
+        "name": "Monthly Pageviews",
+        "description": "Banner impressions tracked per month",
+    },
+    "auto_scan": {
+        "name": "Auto Scanning",
+        "description": "Automatic cookie scanning frequency",
+        "values": {
+            None: "Manual only",
+            "weekly": "Weekly",
+            "daily": "Daily",
+        },
+    },
+    "banner_customization": {
+        "name": "Banner Customization",
+        "description": "Cookie banner styling options",
+        "values": {
+            "basic": "Basic colors & text",
+            "full": "Full CSS control, themes, positions",
+        },
+    },
+    "remove_branding": {
+        "name": "Remove Branding",
+        "description": "Hide 'Powered by CookieGuard' badge",
+    },
+    "email_reports": {
+        "name": "Email Reports",
+        "description": "Monthly compliance reports via email",
+    },
+    "csv_export": {
+        "name": "CSV Export",
+        "description": "Export cookie data and consent logs",
+    },
+    "cookie_categorization": {
+        "name": "Cookie Categorization",
+        "description": "How cookies are classified",
+        "values": {
+            "manual": "Manual classification required",
+            "auto": "Auto-classified from database",
+        },
+    },
+    "auto_classification": {
+        "name": "Auto Classification",
+        "description": "Automatically classify cookies from our database of 90+ known cookies",
+    },
+    "audit_logs": {
+        "name": "Audit Logs",
+        "description": "Detailed logs of all consent changes",
+    },
+    "team_members": {
+        "name": "Team Members",
+        "description": "Additional users on your account",
+    },
+    "priority_support": {
+        "name": "Priority Support",
+        "description": "Fast-track email support response",
     },
 }
 

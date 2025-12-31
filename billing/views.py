@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 
 from .models import BillingProfile, UsageRecord
 from .guards import get_user_plan, get_plan_limits, get_domain_limit, get_pageview_limit
@@ -65,6 +66,12 @@ def _get_urls_or_503():
 
 
 # --- API: Create Checkout Session -------------------------------------------
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {"plan": {"type": "string", "enum": ["starter", "pro"]}}, "required": ["plan"]}},
+	responses={200: {"type": "object", "properties": {"url": {"type": "string"}}}},
+	description="Create a Stripe Checkout session for subscription",
+	tags=["Billing"]
+)
 @api_view(["POST"])
 def create_checkout_session(request):
 	"""
@@ -144,6 +151,11 @@ def create_checkout_session(request):
 
 
 # --- API: Billing Portal -----------------------------------------------------
+@extend_schema(
+	responses={200: {"type": "object", "properties": {"url": {"type": "string"}}}},
+	description="Create a Stripe Billing Portal session for managing subscription",
+	tags=["Billing"]
+)
 @api_view(["POST"])
 def create_billing_portal_session(request):
 	"""Creates a Stripe Billing Portal session so users can manage payment methods/cancel."""
@@ -175,6 +187,11 @@ def create_billing_portal_session(request):
 
 
 # --- Webhook ----------------------------------------------------------------
+@extend_schema(
+	description="Handle Stripe webhook events",
+	tags=["Billing"],
+	exclude=True
+)
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -274,6 +291,18 @@ def stripe_webhook(request):
 
 
 # --- Public Pricing ----------------------------------------------------------
+@extend_schema(
+	responses={200: {"type": "array", "items": {"type": "object", "properties": {
+		"lookup_key": {"type": "string"},
+		"unit_amount": {"type": "integer"},
+		"currency": {"type": "string"},
+		"interval": {"type": "string"},
+		"product_name": {"type": "string"},
+		"price_id": {"type": "string"}
+	}}}},
+	description="Get public pricing information from Stripe",
+	tags=["Billing"]
+)
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_pricing(request):
@@ -305,6 +334,23 @@ def public_pricing(request):
 	return Response(out)
 
 
+@extend_schema(
+	responses={200: {"type": "object", "properties": {
+		"has_profile": {"type": "boolean"},
+		"plan": {"type": "string", "nullable": True},
+		"plan_tier": {"type": "string"},
+		"status": {"type": "string"},
+		"on_trial": {"type": "boolean"},
+		"trial_days_remaining": {"type": "integer"},
+		"current_period_end": {"type": "string", "nullable": True},
+		"cancel_at_period_end": {"type": "boolean"},
+		"limits": {"type": "object"},
+		"usage": {"type": "object"},
+		"features": {"type": "object"}
+	}}},
+	description="Get current user's billing information and plan limits",
+	tags=["Billing"]
+)
 @api_view(["GET"])
 def my_billing(request):
 	from domains.models import Domain
@@ -423,6 +469,11 @@ def my_billing(request):
 	})
 
 
+@extend_schema(
+	responses={200: {"type": "object", "properties": {"ok": {"type": "boolean"}}}},
+	description="Cancel subscription at period end",
+	tags=["Billing"]
+)
 @api_view(["POST"])
 def cancel_subscription(request):
 	"""
@@ -459,3 +510,199 @@ def cancel_subscription(request):
 		return Response({"error": str(e)}, status=400)
 
 	return Response({"ok": True})
+
+
+# --- Usage API ---------------------------------------------------------------
+@extend_schema(
+	responses={200: {"type": "object", "properties": {
+		"plan_tier": {"type": "string"},
+		"pageviews_used": {"type": "integer"},
+		"pageviews_limit": {"type": "integer"},
+		"pageviews_remaining": {"type": "integer"},
+		"percent_used": {"type": "number"},
+		"limit_reached": {"type": "boolean"},
+		"blocked": {"type": "boolean"},
+		"grace_limit": {"type": "integer"},
+		"days_until_reset": {"type": "integer"},
+		"reset_date": {"type": "string", "format": "date"}
+	}}},
+	description="Get current user's usage stats for the billing period",
+	tags=["Billing"]
+)
+@api_view(["GET"])
+def user_usage(request):
+	"""
+	Returns the current user's usage stats for the billing period.
+	Includes pageviews used/remaining, percent used, and reset date.
+	"""
+	from calendar import monthrange
+
+	plan_tier = get_user_plan(request.user)
+	limits = get_plan_limits(request.user)
+	base_limit = limits["pageviews_per_month"]
+	grace_percent = limits["pageviews_grace_percent"]
+	hard_limit = int(base_limit * (1 + grace_percent))
+
+	# Get current month usage
+	today = timezone.now().date()
+	month_start = today.replace(day=1)
+	usage = UsageRecord.objects.filter(user=request.user, month=month_start).first()
+	pageviews_used = usage.pageviews if usage else 0
+
+	# Calculate remaining and percent
+	pageviews_remaining = max(0, base_limit - pageviews_used)
+	percent_used = round((pageviews_used / base_limit) * 100, 1) if base_limit > 0 else 0
+
+	# Calculate days until reset (first of next month)
+	days_in_month = monthrange(today.year, today.month)[1]
+	days_until_reset = days_in_month - today.day + 1
+
+	# Next month's first day
+	if today.month == 12:
+		reset_date = today.replace(year=today.year + 1, month=1, day=1)
+	else:
+		reset_date = today.replace(month=today.month + 1, day=1)
+
+	return Response({
+		"plan_tier": plan_tier,
+		"pageviews_used": pageviews_used,
+		"pageviews_limit": base_limit,
+		"pageviews_remaining": pageviews_remaining,
+		"percent_used": percent_used,
+		"limit_reached": pageviews_used >= base_limit,
+		"blocked": pageviews_used >= hard_limit,
+		"grace_limit": hard_limit,
+		"days_until_reset": days_until_reset,
+		"reset_date": reset_date.isoformat(),
+	})
+
+
+# --- Public Plans API --------------------------------------------------------
+@extend_schema(
+	responses={200: {"type": "object", "properties": {"plans": {"type": "array", "items": {"type": "object"}}}}},
+	description="Get all plan tiers with features and limits (public)",
+	tags=["Billing"]
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_plans(request):
+	"""
+	Returns all plan tiers with their features and limits.
+	Public endpoint - no auth required. Single source of truth for frontend.
+	"""
+	from billing.plans import FEATURE_DESCRIPTIONS
+
+	include_descriptions = request.query_params.get("descriptions", "false").lower() == "true"
+
+	plans = []
+	for tier, config in PLAN_LIMITS.items():
+		plan_data = {
+			"tier": tier,
+			"name": config["name"],
+			"price_monthly": config["price_monthly"],
+			"stripe_lookup_key": config["stripe_lookup_key"],
+			"features": {
+				"domains": config["domains"],
+				"pageviews_per_month": config["pageviews_per_month"],
+				"auto_scan": config["auto_scan"],
+				"banner_customization": config["banner_customization"],
+				"remove_branding": config["remove_branding"],
+				"email_reports": config["email_reports"],
+				"csv_export": config["csv_export"],
+				"cookie_categorization": config["cookie_categorization"],
+				"auto_classification": config["auto_classification"],
+				"audit_logs": config["audit_logs"],
+				"team_members": config["team_members"],
+				"priority_support": config["priority_support"],
+			},
+		}
+		plans.append(plan_data)
+
+	response_data = {"plans": plans}
+
+	# Include feature descriptions if requested
+	if include_descriptions:
+		response_data["feature_descriptions"] = FEATURE_DESCRIPTIONS
+
+	return Response(response_data)
+
+
+@extend_schema(
+	responses={200: {"type": "object"}},
+	description="Get detailed pricing information with feature comparison (public)",
+	tags=["Billing"]
+)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def pricing_page(request):
+	"""
+	Returns structured pricing data optimized for rendering a pricing page.
+	Includes feature comparison matrix and highlighted features per plan.
+	"""
+	from billing.plans import FEATURE_DESCRIPTIONS
+
+	# Features to highlight in the pricing table (in display order)
+	highlight_features = [
+		"domains",
+		"pageviews_per_month",
+		"cookie_categorization",
+		"auto_classification",
+		"auto_scan",
+		"banner_customization",
+		"remove_branding",
+		"email_reports",
+		"csv_export",
+		"audit_logs",
+		"team_members",
+		"priority_support",
+	]
+
+	plans = []
+	for tier, config in PLAN_LIMITS.items():
+		# Build feature list with display values
+		features_list = []
+		for feature_key in highlight_features:
+			value = config.get(feature_key)
+			desc = FEATURE_DESCRIPTIONS.get(feature_key, {})
+
+			# Get human-readable display value
+			if "values" in desc and value in desc["values"]:
+				display_value = desc["values"][value]
+			elif isinstance(value, bool):
+				display_value = value
+			elif isinstance(value, int):
+				if feature_key == "pageviews_per_month":
+					display_value = f"{value:,}"
+				elif value == 0:
+					display_value = False
+				else:
+					display_value = value
+			else:
+				display_value = value
+
+			features_list.append({
+				"key": feature_key,
+				"name": desc.get("name", feature_key.replace("_", " ").title()),
+				"description": desc.get("description", ""),
+				"value": value,
+				"display_value": display_value,
+				"included": bool(value) if isinstance(value, bool) else value not in [None, 0, "manual"],
+			})
+
+		plans.append({
+			"tier": tier,
+			"name": config["name"],
+			"price_monthly": config["price_monthly"],
+			"price_yearly": config["price_monthly"] * 10 if config["price_monthly"] > 0 else 0,  # 2 months free
+			"stripe_lookup_key": config["stripe_lookup_key"],
+			"is_popular": tier == "pro",  # Highlight Pro as most popular
+			"features": features_list,
+			"cta_text": "Get Started" if tier == "free" else f"Start {config['name']}",
+		})
+
+	return Response({
+		"plans": plans,
+		"currency": "usd",
+		"billing_periods": ["monthly", "yearly"],
+		"yearly_discount_text": "2 months free",
+	})

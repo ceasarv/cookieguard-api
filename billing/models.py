@@ -101,6 +101,13 @@ class UsageRecord(models.Model):
 	month = models.DateField(help_text="First day of the month")
 	pageviews = models.PositiveIntegerField(default=0)
 	scans_used = models.PositiveIntegerField(default=0)
+
+	# Threshold warning flags to avoid duplicate emails
+	warning_80_sent = models.BooleanField(default=False)
+	warning_100_sent = models.BooleanField(default=False)
+	warning_hard_limit_sent = models.BooleanField(default=False)
+
+	# Deprecated - keeping for backwards compatibility, use warning_100_sent instead
 	limit_warning_sent = models.BooleanField(default=False)
 
 	created_at = models.DateTimeField(auto_now_add=True)

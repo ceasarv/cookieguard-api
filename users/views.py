@@ -10,11 +10,13 @@ from django.db.models import F
 from django.utils.timezone import now
 
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 import google.oauth2.id_token
 import google.auth.transport.requests
@@ -78,6 +80,12 @@ def _serialize_user(user):
 
 # ---------- views ----------
 
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {"expected": {"type": "integer"}, "max_step": {"type": "integer"}}}},
+	responses={200: {"type": "object", "properties": {"on_boarding_step": {"type": "integer"}, "advanced": {"type": "boolean"}}}},
+	description="Advance onboarding step atomically",
+	tags=["Auth"]
+)
 @api_view(["POST"])
 def onboarding_next(request):
 	if not has_field(User, "on_boarding_step"):
@@ -104,6 +112,19 @@ def onboarding_next(request):
 	return Response({"on_boarding_step": user.on_boarding_step, "advanced": bool(updated)})
 
 
+@extend_schema(
+	methods=["GET"],
+	responses={200: {"type": "object", "properties": {"id": {"type": "string"}, "email": {"type": "string"}, "name": {"type": "string"}, "on_boarding_step": {"type": "integer"}, "avatar_url": {"type": "string", "nullable": True}}}},
+	description="Get current user profile",
+	tags=["Auth"]
+)
+@extend_schema(
+	methods=["PATCH"],
+	request={"application/json": {"type": "object", "properties": {"on_boarding_step": {"type": "integer"}, "name": {"type": "string"}, "avatar_url": {"type": "string"}}}},
+	responses={200: {"type": "object", "properties": {"id": {"type": "string"}, "email": {"type": "string"}, "name": {"type": "string"}, "on_boarding_step": {"type": "integer"}, "avatar_url": {"type": "string", "nullable": True}}}},
+	description="Update current user profile",
+	tags=["Auth"]
+)
 @api_view(["GET", "PATCH"])
 def me(request):
 	user = request.user
@@ -143,6 +164,12 @@ def me(request):
 	return Response(_serialize_user(user))
 
 
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {"email": {"type": "string"}, "password": {"type": "string"}}, "required": ["email", "password"]}},
+	responses={201: {"type": "object", "properties": {"message": {"type": "string"}, "user": {"type": "object"}, "tokens": {"type": "object"}}}},
+	description="Register a new user account",
+	tags=["Auth"]
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
@@ -189,7 +216,8 @@ def register(request):
 @extend_schema(
 	request={"application/json": {"type": "object", "properties": {"email": {"type": "string"}, "password": {"type": "string"}}}},
 	responses={200: {"type": "object", "properties": {"user": {"type": "object"}, "tokens": {"type": "object"}}}},
-	description="Login with email and password"
+	description="Login with email and password",
+	tags=["Auth"]
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -209,7 +237,8 @@ def login(request):
 @extend_schema(
 	request={"application/json": {"type": "object", "properties": {"credential": {"type": "string"}, "id_token": {"type": "string"}}}},
 	responses={200: {"type": "object", "properties": {"user": {"type": "object"}, "tokens": {"type": "object"}}}},
-	description="Login with Google OAuth2"
+	description="Login with Google OAuth2",
+	tags=["Auth"]
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -329,3 +358,115 @@ def google_login(request):
 		},
 		"tokens": tokens_for(user),
 	}, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+	parameters=[
+		OpenApiParameter(name="email", type=OpenApiTypes.STR, description="Filter by email (case-insensitive)"),
+		OpenApiParameter(name="is_blocked", type=OpenApiTypes.BOOL, description="Filter by blocked status"),
+		OpenApiParameter(name="is_staff", type=OpenApiTypes.BOOL, description="Filter by staff status"),
+		OpenApiParameter(name="page_size", type=OpenApiTypes.INT, description="Results per page (default: 50)"),
+		OpenApiParameter(name="page", type=OpenApiTypes.INT, description="Page number"),
+	],
+	responses={
+		200: {
+			"type": "object",
+			"properties": {
+				"count": {"type": "integer"},
+				"next": {"type": "string", "nullable": True},
+				"previous": {"type": "string", "nullable": True},
+				"results": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {"type": "string"},
+							"email": {"type": "string"},
+							"is_active": {"type": "boolean"},
+							"is_staff": {"type": "boolean"},
+							"is_superuser": {"type": "boolean"},
+							"is_blocked": {"type": "boolean"},
+							"date_joined": {"type": "string", "format": "date-time"},
+							"last_login": {"type": "string", "format": "date-time", "nullable": True},
+							"on_boarding_step": {"type": "integer"},
+							"plan": {"type": "string"},
+							"subscription_status": {"type": "string", "nullable": True},
+							"domain_count": {"type": "integer"},
+						}
+					}
+				}
+			}
+		},
+		403: {"description": "Forbidden - not staff/superuser"}
+	},
+	description="List all users (staff/superuser only)",
+	tags=["Users"]
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_users(request):
+	"""
+	Returns a paginated list of all users.
+	Only accessible by staff or superusers.
+	"""
+	from .permissions import IsStaffOrSuperuser
+	from billing.models import BillingProfile
+	from domains.models import Domain
+
+	# Check staff/superuser permission
+	if not (request.user.is_staff or request.user.is_superuser):
+		return Response(
+			{"detail": "You do not have permission to access this resource."},
+			status=status.HTTP_403_FORBIDDEN
+		)
+
+	users = User.objects.all().order_by("-date_joined")
+
+	# Optional filtering
+	email_filter = request.query_params.get("email")
+	if email_filter:
+		users = users.filter(email__icontains=email_filter)
+
+	is_blocked = request.query_params.get("is_blocked")
+	if is_blocked is not None:
+		users = users.filter(is_blocked=is_blocked.lower() == "true")
+
+	is_staff = request.query_params.get("is_staff")
+	if is_staff is not None:
+		users = users.filter(is_staff=is_staff.lower() == "true")
+
+	# Pagination
+	paginator = PageNumberPagination()
+	paginator.page_size = int(request.query_params.get("page_size", 50))
+	page = paginator.paginate_queryset(users, request)
+
+	data = []
+	for user in page:
+		# Get billing info
+		try:
+			billing = BillingProfile.objects.get(user=user)
+			plan = billing.plan_tier
+			subscription_status = billing.subscription_status
+		except BillingProfile.DoesNotExist:
+			plan = "free"
+			subscription_status = None
+
+		# Get domain count
+		domain_count = Domain.objects.filter(user=user).count()
+
+		data.append({
+			"id": str(user.id),
+			"email": user.email,
+			"is_active": user.is_active,
+			"is_staff": user.is_staff,
+			"is_superuser": user.is_superuser,
+			"is_blocked": user.is_blocked,
+			"date_joined": user.date_joined,
+			"last_login": user.last_login,
+			"on_boarding_step": user.on_boarding_step,
+			"plan": plan,
+			"subscription_status": subscription_status,
+			"domain_count": domain_count,
+		})
+
+	return paginator.get_paginated_response(data)

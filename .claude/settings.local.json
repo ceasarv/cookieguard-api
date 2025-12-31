@@ -14,7 +14,12 @@
       "Bash(set:*)",
       "Bash(python manage.py check:*)",
       "Bash(echo:*)",
-      "Bash(dir \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\staticfiles\\cookieguard-logo.svg\")"
+      "Bash(dir \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\staticfiles\\cookieguard-logo.svg\")",
+      "Bash(find:*)",
+      "Bash(python manage.py:*)",
+      "Bash(if not exist \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\.claude\\commands\" mkdir \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\.claude\\commands\")",
+      "Bash(python:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

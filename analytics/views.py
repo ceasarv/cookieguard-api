@@ -35,7 +35,8 @@ class ConsentAnalyticsView(APIView):
 			"accept_rate": {"type": "number", "nullable": True},
 			"reject_rate": {"type": "number", "nullable": True}
 		}}}},
-		description="Get daily consent analytics for the authenticated user's domains"
+		description="Get daily consent analytics for the authenticated user's domains",
+		tags=["Analytics"]
 	)
 	def get(self, request):
 		user = request.user

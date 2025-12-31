@@ -9,6 +9,8 @@ from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import F
 from ipaddress import ip_address, IPv4Address, IPv6Address
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 from .models import ConsentLog
 from .serializers import ConsentLogSerializer
 from domains.models import Domain
@@ -34,6 +36,24 @@ def truncate_ip(ip_str: str) -> str:
 	return ip_str  # fallback if invalid format
 
 
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {
+		"embed_key": {"type": "string"},
+		"banner_id": {"type": "integer"},
+		"choice": {"type": "string"},
+		"preferences": {"type": "object"}
+	}, "required": ["embed_key", "choice"]}},
+	responses={201: {"type": "object", "properties": {
+		"success": {"type": "boolean"},
+		"consent_id": {"type": "string"},
+		"choice": {"type": "string"},
+		"banner_id": {"type": "integer"},
+		"domain": {"type": "string"},
+		"timestamp": {"type": "string", "format": "date-time"}
+	}}},
+	description="Log a consent event from the embedded banner",
+	tags=["Consents"]
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def log_consent(request):
@@ -105,6 +125,20 @@ def log_consent(request):
 	)
 
 
+@extend_schema(
+	parameters=[
+		OpenApiParameter(name="domain", type=OpenApiTypes.STR, description="Filter by domain ID"),
+		OpenApiParameter(name="choice", type=OpenApiTypes.STR, description="Filter by choice (accept, reject, prefs)"),
+	],
+	responses={200: {"type": "object", "properties": {
+		"count": {"type": "integer"},
+		"next": {"type": "string", "nullable": True},
+		"previous": {"type": "string", "nullable": True},
+		"results": {"type": "array", "items": {"type": "object"}}
+	}}},
+	description="List consent logs for all domains owned by the user",
+	tags=["Consents"]
+)
 @api_view(["GET"])
 def list_consents(request):
 	"""
@@ -145,6 +179,18 @@ def list_consents(request):
 	return paginator.get_paginated_response(data)
 
 
+@extend_schema(
+	request={"application/json": {"type": "object", "properties": {"embed_key": {"type": "string"}}, "required": ["embed_key"]}},
+	responses={200: {"type": "object", "properties": {
+		"success": {"type": "boolean"},
+		"pageviews": {"type": "integer"},
+		"limit": {"type": "integer"},
+		"over_limit": {"type": "boolean"},
+		"blocked": {"type": "boolean"}
+	}}},
+	description="Track a pageview for usage metering",
+	tags=["Consents"]
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def track_pageview(request):
@@ -152,7 +198,14 @@ def track_pageview(request):
 	Track a pageview for usage metering.
 	Called by embed.js on each page load.
 	Pageviews are tracked per account (shared across all domains).
+
+	Sends warning emails at:
+	- 80%: "Approaching your limit"
+	- 100%: "Limit reached, grace period active"
+	- 115%: "Hard limit reached, views blocked"
 	"""
+	from billing.tasks import send_pageview_limit_warning
+
 	embed_key = request.data.get("embed_key")
 	if not embed_key:
 		return Response(
@@ -185,30 +238,57 @@ def track_pageview(request):
 	UsageRecord.objects.filter(pk=usage.pk).update(pageviews=F("pageviews") + 1)
 	usage.refresh_from_db()
 
-	# Check limits with 15% grace period
-	plan = get_user_plan(user)
+	# Check limits with grace period
 	base_limit = get_pageview_limit(user)
 	effective_limit = get_effective_pageview_limit(user)
 
-	over_soft_limit = usage.pageviews > base_limit
-	over_hard_limit = usage.pageviews > effective_limit
+	# Calculate thresholds
+	threshold_80 = int(base_limit * 0.80)
+	threshold_100 = base_limit
+	threshold_hard = effective_limit  # 115% (base + grace)
 
-	# Send warning email at 100% (first time only)
-	if over_soft_limit and not usage.limit_warning_sent:
-		usage.limit_warning_sent = True
-		usage.save(update_fields=["limit_warning_sent"])
-		# TODO: Trigger async email task
-		# send_pageview_limit_warning.delay(user.id, usage.pageviews, base_limit)
+	over_80 = usage.pageviews >= threshold_80
+	over_100 = usage.pageviews >= threshold_100
+	over_hard = usage.pageviews >= threshold_hard
+
+	# Send warning emails at each threshold (first time only)
+	update_fields = []
+
+	if over_80 and not usage.warning_80_sent:
+		usage.warning_80_sent = True
+		update_fields.append("warning_80_sent")
+		send_pageview_limit_warning.delay(user.id, usage.pageviews, base_limit, "approaching")
+
+	if over_100 and not usage.warning_100_sent:
+		usage.warning_100_sent = True
+		update_fields.append("warning_100_sent")
+		send_pageview_limit_warning.delay(user.id, usage.pageviews, base_limit, "reached")
+
+	if over_hard and not usage.warning_hard_limit_sent:
+		usage.warning_hard_limit_sent = True
+		update_fields.append("warning_hard_limit_sent")
+		send_pageview_limit_warning.delay(user.id, usage.pageviews, base_limit, "blocked")
+
+	if update_fields:
+		usage.save(update_fields=update_fields)
 
 	return Response({
 		"success": True,
 		"pageviews": usage.pageviews,
 		"limit": base_limit,
-		"over_limit": over_soft_limit,
-		"blocked": over_hard_limit,
+		"over_limit": over_100,
+		"blocked": over_hard,
 	})
 
 
+@extend_schema(
+	parameters=[
+		OpenApiParameter(name="domain", type=OpenApiTypes.STR, description="Filter by domain ID"),
+	],
+	responses={200: {"description": "CSV file download"}},
+	description="Export consent logs as CSV (requires Pro or Agency plan)",
+	tags=["Consents"]
+)
 @api_view(["GET"])
 @permission_classes([CanExportCSV])
 def export_consents_csv(request):

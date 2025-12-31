@@ -67,6 +67,27 @@ async def crawl_site(
 		pause_ms_between_pages: int = 400
 ):
 	"""Crawl limited pages, aggregate cookies on one context."""
+	return await crawl_site_with_progress(
+		url=url,
+		max_pages=max_pages,
+		max_depth=max_depth,
+		include_subdomains=include_subdomains,
+		dual_pass=dual_pass,
+		pause_ms_between_pages=pause_ms_between_pages,
+		progress_callback=None,
+	)
+
+
+async def crawl_site_with_progress(
+		url: str,
+		max_pages: int = 20,
+		max_depth: int = 2,
+		include_subdomains: bool = False,
+		dual_pass: bool = False,
+		pause_ms_between_pages: int = 400,
+		progress_callback=None,
+):
+	"""Crawl limited pages, aggregate cookies on one context. Supports progress callbacks."""
 	t0 = time.perf_counter()
 	start_host = urlparse(url).hostname or ""
 	result = {
@@ -85,11 +106,21 @@ async def crawl_site(
 		"postConsent": None  # filled if dual_pass
 	}
 
+	def report_progress(stage, pct, msg, details=None):
+		if progress_callback:
+			try:
+				progress_callback(stage, pct, msg, details or {})
+			except Exception:
+				pass
+
+	report_progress('init', 5, 'Initializing browser...')
+
 	# Get a context from the shared browser pool
 	context = await get_context()
 
 	try:
 		page = await context.new_page()
+		report_progress('crawling', 10, 'Browser ready, starting crawl...')
 
 		# ---- BFS crawl (single pass) ------------------------------------
 		queue = [(url, 0)]
@@ -101,6 +132,15 @@ async def crawl_site(
 			if current in visited or depth > max_depth:
 				continue
 			visited.add(current)
+
+			pages_done = len(result["pagesScanned"])
+			progress_pct = 10 + int((pages_done / max_pages) * 80)  # 10-90%
+			report_progress(
+				'crawling',
+				progress_pct,
+				f'Scanning page {pages_done + 1}/{max_pages}...',
+				{'current_url': current, 'pages_scanned': pages_done, 'max_pages': max_pages}
+			)
 
 			try:
 				await page.add_init_script('Object.defineProperty(navigator,"webdriver",{get:()=>undefined})')
@@ -133,6 +173,8 @@ async def crawl_site(
 				result["pagesScanned"].append({"url": current, "error": "timeout"})
 			except Exception as e:
 				result["pagesScanned"].append({"url": current, "error": str(e)})
+
+		report_progress('analyzing', 90, 'Analyzing cookies...')
 
 		# aggregate cookies after crawl
 		cookies = await context.cookies()
@@ -181,6 +223,7 @@ async def crawl_site(
 
 		# ---- Optional dual pass (click Accept then re-check) ------------
 		if dual_pass:
+			report_progress('dual_pass', 95, 'Testing consent flow...')
 			try:
 				# pick a representative page (homepage or last good page)
 				rep = result["pagesScanned"][0]["url"] if result["pagesScanned"] else url
@@ -191,13 +234,15 @@ async def crawl_site(
 				result["preConsent"] = {
 					"counts": {"first": first, "third": third, "tracker": track, "unclassified": uncls}
 				}
-				ar, af, at, au = counts(after_cookies)
+				after_rows, after_first, after_third, after_track, after_uncls = counts(after_cookies)
 				result["postConsent"] = {
-					"counts": {"first": af, "third": at, "tracker": au, "unclassified": len(ar) - au}
+					"counts": {"first": after_first, "third": after_third, "tracker": after_track, "unclassified": after_uncls}
 				}
 			except Exception:
 				# dual pass is best-effort; ignore failures
 				pass
+
+		report_progress('complete', 100, 'Scan complete!')
 
 	except Exception as e:
 		msg = str(e)

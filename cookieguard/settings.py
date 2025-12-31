@@ -46,7 +46,8 @@ INSTALLED_APPS = [
 	'banners',
 	'consents',
 	'support',
-	'analytics'
+	'analytics',
+	'testing',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +89,16 @@ ALLOWED_HOSTS = [
 	".ngrok-free.app",
 ]
 
+# Production security settings
+if ENV == "production":
+	SECURE_SSL_REDIRECT = True
+	SECURE_HSTS_SECONDS = 31536000  # 1 year
+	SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+	SECURE_HSTS_PRELOAD = True
+	SESSION_COOKIE_SECURE = True
+	CSRF_COOKIE_SECURE = True
+	SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 REST_FRAMEWORK = {
 	'DEFAULT_AUTHENTICATION_CLASSES': (
 		'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -102,6 +113,47 @@ REST_FRAMEWORK = {
 	'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
+def preprocessing_filter_spec(endpoints):
+	"""Filter out non-API endpoints and normalize tags."""
+	filtered = []
+	for (path, path_regex, method, callback) in endpoints:
+		# Skip non-API paths
+		if not path.startswith('/api/'):
+			continue
+		filtered.append((path, path_regex, method, callback))
+	return filtered
+
+
+def postprocessing_hook(result, generator, request, public):
+	"""Normalize all tags to title case and sort alphabetically."""
+	# Tag name mapping (lowercase -> proper case)
+	tag_map = {
+		'auth': 'Auth',
+		'users': 'Users',
+		'billing': 'Billing',
+		'domains': 'Domains',
+		'banners': 'Banners',
+		'consents': 'Consents',
+		'scanner': 'Scanner',
+		'analytics': 'Analytics',
+		'support': 'Support',
+	}
+
+	# Normalize tags in all paths
+	for path_data in result.get('paths', {}).values():
+		for method_data in path_data.values():
+			if isinstance(method_data, dict) and 'tags' in method_data:
+				method_data['tags'] = [
+					tag_map.get(tag.lower(), tag.title()) for tag in method_data['tags']
+				]
+
+	# Sort the tags list alphabetically
+	if 'tags' in result:
+		result['tags'] = sorted(result['tags'], key=lambda x: x['name'])
+
+	return result
+
+
 SPECTACULAR_SETTINGS = {
 	'TITLE': 'CookieGuard API',
 	'DESCRIPTION': 'GDPR-compliant cookie consent management platform with automatic script blocking and granular consent controls.',
@@ -112,9 +164,23 @@ SPECTACULAR_SETTINGS = {
 	'SWAGGER_UI_SETTINGS': {
 		'deepLinking': True,
 		'persistAuthorization': True,
-		'displayOperationId': True,
+		'displayOperationId': False,
+		'tagsSorter': 'alpha',
 	},
 	'SECURITY': [{'Bearer': []}],
+	'TAGS': [
+		{'name': 'Analytics', 'description': 'Usage analytics'},
+		{'name': 'Auth', 'description': 'Authentication and user management'},
+		{'name': 'Banners', 'description': 'Cookie banner configuration'},
+		{'name': 'Billing', 'description': 'Subscription and payment management'},
+		{'name': 'Consents', 'description': 'Consent logging and analytics'},
+		{'name': 'Domains', 'description': 'Domain management'},
+		{'name': 'Scanner', 'description': 'Cookie scanning'},
+		{'name': 'Support', 'description': 'Support tickets'},
+		{'name': 'Users', 'description': 'User administration (staff only)'},
+	],
+	'PREPROCESSING_HOOKS': ['cookieguard.settings.preprocessing_filter_spec'],
+	'POSTPROCESSING_HOOKS': ['cookieguard.settings.postprocessing_hook'],
 }
 
 ROOT_URLCONF = 'cookieguard.urls'
@@ -193,17 +259,30 @@ STATICFILES_DIRS = [
 	os.path.join(BASE_DIR, 'static'),
 ]
 
+# Media files (user uploads, screenshots, etc.)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Screenshot settings
+SCREENSHOT_DIR = MEDIA_ROOT / "screenshots"
+SCREENSHOT_TTL_MINUTES = 10  # Auto-delete after 10 minutes
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
-# CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+
+# Worker settings for 2GB RAM worker
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 50  # Restart after 50 tasks to prevent memory leaks
+CELERY_WORKER_CONCURRENCY = 2  # 2 concurrent scans (~500MB each = 1GB, leaves 1GB headroom)
+CELERY_TASK_TIME_LIMIT = 180  # Hard kill after 3 minutes
+CELERY_TASK_SOFT_TIME_LIMIT = 150  # Soft limit to allow cleanup
 
 # --- Stripe base ---
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
