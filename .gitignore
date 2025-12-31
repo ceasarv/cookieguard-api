@@ -27,3 +27,7 @@ db.sqlite3
 /staticfiles/
 /media/
 /nul
+
+# Celery Beat schedule files
+celerybeat-schedule*
+celerybeat.pid
