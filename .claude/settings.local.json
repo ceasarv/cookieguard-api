@@ -19,7 +19,8 @@
       "Bash(python manage.py:*)",
       "Bash(if not exist \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\.claude\\commands\" mkdir \"C:\\Users\\ceasa\\Documents\\Code\\CookieGuard-API\\.claude\\commands\")",
       "Bash(python:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(dir \"C:\\Users\\ceasa\\Documents\\Code\" /B)"
     ],
     "deny": [],
     "ask": []
