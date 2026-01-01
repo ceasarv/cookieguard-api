@@ -22,7 +22,11 @@
       "Bash(findstr:*)",
       "Bash(dir \"C:\\Users\\ceasa\\Documents\\Code\" /B)",
       "Bash(git rm:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(tasklist:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
