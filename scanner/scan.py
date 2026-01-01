@@ -10,6 +10,7 @@ from pathlib import Path
 from django.conf import settings
 
 from scanner.browser_pool import get_context
+from scanner.models import CookieDefinition
 
 logger = logging.getLogger("scanner")
 
@@ -17,16 +18,42 @@ logger = logging.getLogger("scanner")
 SCREENSHOT_DIR = getattr(settings, 'SCREENSHOT_DIR', Path(settings.BASE_DIR) / 'media' / 'screenshots')
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Skip screenshots in production (ephemeral filesystem)
+SKIP_SCREENSHOTS = os.getenv('DJANGO_ENV') == 'production'
+
+# Known tracking cookie patterns (fallback if not in database)
 TRACKING_PATTERNS = [
-	"_ga", "_gid", "_fbp", "ajs_", "__hstc", "intercom", "_gcl_", "hubspot", "clarity"
+	"_ga", "_gid", "_fbp", "ajs_", "__hstc", "intercom", "_gcl_", "hubspot", "clarity",
+	"_uetsid", "_uetvid", "_ttp", "TDID", "IDE", "uuid2", "demdex", "criteo", "adnxs"
 ]
 
+# Category display names
+CATEGORY_DISPLAY = {
+	'necessary': 'Necessary',
+	'functional': 'Functional',
+	'analytics': 'Analytics',
+	'marketing': 'Marketing',
+	'other': 'Unclassified',
+}
 
-def classify_cookie(name):
+
+def classify_cookie(name: str, domain: str) -> tuple[str, str, str]:
+	"""
+	Classify a cookie using the database first, then fallback to patterns.
+	Returns (classification, category, provider)
+	"""
+	# Try database lookup
+	definition = CookieDefinition.find_match(name, domain)
+	if definition:
+		category = CATEGORY_DISPLAY.get(definition.category, 'Unclassified')
+		return (category, definition.category, definition.provider or '')
+
+	# Fallback to pattern matching
 	for pattern in TRACKING_PATTERNS:
-		if pattern in name:
-			return "Tracker"
-	return "Unclassified"
+		if pattern in name.lower():
+			return ('Tracker', 'marketing', '')
+
+	return ('Unclassified', 'other', '')
 
 
 def get_base_domain(host):
@@ -101,19 +128,20 @@ async def scan_site(url: str):
 
 		logger.info("[scan_site] Page loaded and network idle.")
 
-		# Capture screenshot
+		# Capture screenshot (skip in production - ephemeral filesystem)
 		screenshot_filename = None
-		try:
-			screenshot_id = str(uuid.uuid4())[:8]
-			screenshot_filename = f"{screenshot_id}.png"
-			screenshot_path = SCREENSHOT_DIR / screenshot_filename
-			await page.screenshot(path=str(screenshot_path), full_page=False)
-			logger.info("[scan_site] Screenshot saved: %s", screenshot_filename)
-			# Clean up old screenshots, keep only 5 most recent
-			cleanup_old_screenshots(max_keep=5)
-		except Exception as ss_error:
-			logger.warning("[scan_site] Screenshot failed: %s", ss_error)
-			screenshot_filename = None
+		if not SKIP_SCREENSHOTS:
+			try:
+				screenshot_id = str(uuid.uuid4())[:8]
+				screenshot_filename = f"{screenshot_id}.png"
+				screenshot_path = SCREENSHOT_DIR / screenshot_filename
+				await page.screenshot(path=str(screenshot_path), full_page=False)
+				logger.info("[scan_site] Screenshot saved: %s", screenshot_filename)
+				# Clean up old screenshots, keep only 5 most recent
+				cleanup_old_screenshots(max_keep=5)
+			except Exception as ss_error:
+				logger.warning("[scan_site] Screenshot failed: %s", ss_error)
+				screenshot_filename = None
 
 		html = await page.content()
 
@@ -128,7 +156,7 @@ async def scan_site(url: str):
 		third_party = []
 
 		for c in cookies:
-			classification = classify_cookie(c["name"])
+			classification, category, provider = classify_cookie(c["name"], c["domain"])
 			is_third_party = get_base_domain(c["domain"]) != get_base_domain(parsed_host)
 			ctype = "Third-party" if is_third_party else "First-party"
 
@@ -138,8 +166,11 @@ async def scan_site(url: str):
 				"path": c["path"],
 				"expires": "Session" if c["expires"] == -1 else c["expires"],
 				"type": ctype,
-				"classification": classification
+				"classification": classification,
+				"category": category,
 			}
+			if provider:
+				cookie_info["provider"] = provider
 
 			cookie_results.append(cookie_info)
 
@@ -148,9 +179,9 @@ async def scan_site(url: str):
 			else:
 				third_party.append(cookie_info)
 
-			if classification == "Tracker":
+			if classification in ("Tracker", "Marketing", "Analytics"):
 				tracking_cookies.append(cookie_info)
-			else:
+			elif classification == "Unclassified":
 				unclassified_cookies.append(cookie_info)
 
 		logger.info("[scan_site] Checking for consent banner...")
