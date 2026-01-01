@@ -131,8 +131,8 @@ async def scan_site(url: str):
 
 		logger.info("[scan_site] Page loaded and network idle.")
 
-		# Capture screenshot as base64 (JPEG, 70% quality, ~50-100KB)
-		screenshot_base64 = None
+		# Capture screenshot and save as file
+		screenshot_url = None
 		try:
 			screenshot_bytes = await page.screenshot(
 				full_page=False,
@@ -140,11 +140,17 @@ async def scan_site(url: str):
 				quality=70,
 				scale='css',  # Use CSS pixels, not device pixels
 			)
-			screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-			logger.info("[scan_site] Screenshot captured (%d KB)", len(screenshot_bytes) // 1024)
+			# Save to file with unique name
+			screenshot_filename = f"{uuid.uuid4()}.jpg"
+			screenshot_path = SCREENSHOT_DIR / screenshot_filename
+			screenshot_path.write_bytes(screenshot_bytes)
+			screenshot_url = f"/api/screenshots/{screenshot_filename}"
+			logger.info("[scan_site] Screenshot saved (%d KB): %s", len(screenshot_bytes) // 1024, screenshot_filename)
+			# Clean up old screenshots
+			cleanup_old_screenshots(max_keep=20)
 		except Exception as ss_error:
 			logger.warning("[scan_site] Screenshot failed: %s", ss_error)
-			screenshot_base64 = None
+			screenshot_url = None
 
 		html = await page.content()
 
@@ -213,7 +219,7 @@ async def scan_site(url: str):
 			"complianceScore": score,
 			"issues": issues,
 			"duration": round(time.perf_counter() - start_time, 2),
-			"screenshot": screenshot_base64,  # Base64 encoded PNG
+			"screenshot": screenshot_url,  # URL to screenshot file
 		}
 
 		logger.info("[scan_site] Scan complete.")

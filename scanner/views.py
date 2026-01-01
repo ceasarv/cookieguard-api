@@ -6,6 +6,8 @@ from billing.permissions import HasPaidPlan
 from celery.result import AsyncResult
 from drf_spectacular.utils import extend_schema
 from django.conf import settings
+from django.http import FileResponse, Http404
+from pathlib import Path
 import os, resend
 from urllib.parse import urlparse
 
@@ -294,6 +296,30 @@ def classify_cookie(request, cookie_id):
 		"category": category,
 		"contributed_to_database": True,
 	})
+
+
+@extend_schema(exclude=True)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def serve_screenshot(request, filename):
+	"""Serve screenshot files (public, no auth needed)."""
+	# Security: only allow .jpg files, no path traversal
+	if not filename.endswith('.jpg') or '/' in filename or '\\' in filename:
+		raise Http404("Screenshot not found")
+
+	screenshot_dir = getattr(settings, 'SCREENSHOT_DIR', Path(settings.MEDIA_ROOT) / 'screenshots')
+	file_path = screenshot_dir / filename
+
+	if not file_path.exists():
+		raise Http404("Screenshot not found")
+
+	return FileResponse(
+		open(file_path, 'rb'),
+		content_type='image/jpeg',
+		headers={
+			'Cache-Control': 'public, max-age=300',  # Cache for 5 minutes
+		}
+	)
 
 
 @extend_schema(
