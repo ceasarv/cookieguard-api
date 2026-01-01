@@ -5,9 +5,7 @@ import traceback
 import time
 import logging
 import uuid
-import os
-import base64
-from pathlib import Path
+import redis
 from django.conf import settings
 from asgiref.sync import sync_to_async
 
@@ -16,9 +14,9 @@ from scanner.models import CookieDefinition
 
 logger = logging.getLogger("scanner")
 
-# Ensure screenshot directory exists
-SCREENSHOT_DIR = getattr(settings, 'SCREENSHOT_DIR', Path(settings.BASE_DIR) / 'media' / 'screenshots')
-SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+# Redis connection for screenshot storage
+redis_client = redis.from_url(settings.CELERY_BROKER_URL)
+SCREENSHOT_TTL = 600  # 10 minutes
 
 # Known tracking cookie patterns (fallback if not in database)
 TRACKING_PATTERNS = [
@@ -70,29 +68,19 @@ def get_base_domain(host):
 	return f"{parts.domain}.{parts.suffix}" if parts.suffix else parts.domain
 
 
-def cleanup_old_screenshots(max_keep: int = 5):
-	"""Delete oldest screenshots if there are more than max_keep in the folder."""
-	try:
-		screenshots = [
-			f for f in SCREENSHOT_DIR.iterdir()
-			if f.is_file() and f.suffix.lower() == '.png'
-		]
-		if len(screenshots) <= max_keep:
-			return
+def save_screenshot_to_redis(screenshot_bytes: bytes) -> str:
+	"""Save screenshot to Redis and return the key."""
+	screenshot_id = str(uuid.uuid4())
+	key = f"screenshot:{screenshot_id}"
+	redis_client.setex(key, SCREENSHOT_TTL, screenshot_bytes)
+	logger.info("[screenshot] Saved to Redis: %s (%d KB)", screenshot_id, len(screenshot_bytes) // 1024)
+	return screenshot_id
 
-		# Sort by modification time (oldest first)
-		screenshots.sort(key=lambda f: f.stat().st_mtime)
 
-		# Delete oldest ones, keeping only max_keep
-		to_delete = screenshots[:-max_keep]
-		for f in to_delete:
-			try:
-				f.unlink()
-				logger.debug("[cleanup] Deleted old screenshot: %s", f.name)
-			except Exception:
-				pass
-	except Exception as e:
-		logger.debug("[cleanup] Screenshot cleanup error: %s", e)
+def get_screenshot_from_redis(screenshot_id: str) -> bytes | None:
+	"""Retrieve screenshot from Redis."""
+	key = f"screenshot:{screenshot_id}"
+	return redis_client.get(key)
 
 
 async def scan_site(url: str):
@@ -131,23 +119,19 @@ async def scan_site(url: str):
 
 		logger.info("[scan_site] Page loaded and network idle.")
 
-		# Capture screenshot and save as file
+		# Capture screenshot and save to Redis
 		screenshot_url = None
 		try:
 			screenshot_bytes = await page.screenshot(
 				full_page=False,
 				type='jpeg',
-				quality=70,
-				scale='css',  # Use CSS pixels, not device pixels
+				quality=50,  # Lower quality for smaller size
+				scale='css',
 			)
-			# Save to file with unique name
-			screenshot_filename = f"{uuid.uuid4()}.jpg"
-			screenshot_path = SCREENSHOT_DIR / screenshot_filename
-			screenshot_path.write_bytes(screenshot_bytes)
-			screenshot_url = f"/api/screenshots/{screenshot_filename}"
-			logger.info("[scan_site] Screenshot saved (%d KB): %s", len(screenshot_bytes) // 1024, screenshot_filename)
-			# Clean up old screenshots
-			cleanup_old_screenshots(max_keep=20)
+			# Save to Redis with TTL
+			screenshot_id = save_screenshot_to_redis(screenshot_bytes)
+			screenshot_url = f"/api/screenshots/{screenshot_id}"
+			logger.info("[scan_site] Screenshot saved to Redis (%d KB)", len(screenshot_bytes) // 1024)
 		except Exception as ss_error:
 			logger.warning("[scan_site] Screenshot failed: %s", ss_error)
 			screenshot_url = None

@@ -6,8 +6,7 @@ from billing.permissions import HasPaidPlan
 from celery.result import AsyncResult
 from drf_spectacular.utils import extend_schema
 from django.conf import settings
-from django.http import FileResponse, Http404
-from pathlib import Path
+from django.http import Http404
 import os, resend
 from urllib.parse import urlparse
 
@@ -302,19 +301,23 @@ def classify_cookie(request, cookie_id):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def serve_screenshot(request, filename):
-	"""Serve screenshot files (public, no auth needed)."""
-	# Security: only allow .jpg files, no path traversal
-	if not filename.endswith('.jpg') or '/' in filename or '\\' in filename:
+	"""Serve screenshot from Redis (public, no auth needed)."""
+	from scanner.scan import get_screenshot_from_redis
+	from django.http import HttpResponse
+
+	# Security: only allow UUID format, no path traversal
+	if '/' in filename or '\\' in filename:
 		raise Http404("Screenshot not found")
 
-	screenshot_dir = getattr(settings, 'SCREENSHOT_DIR', Path(settings.MEDIA_ROOT) / 'screenshots')
-	file_path = screenshot_dir / filename
+	# Remove .jpg extension if present
+	screenshot_id = filename.replace('.jpg', '')
 
-	if not file_path.exists():
-		raise Http404("Screenshot not found")
+	screenshot_bytes = get_screenshot_from_redis(screenshot_id)
+	if not screenshot_bytes:
+		raise Http404("Screenshot not found or expired")
 
-	return FileResponse(
-		open(file_path, 'rb'),
+	return HttpResponse(
+		screenshot_bytes,
 		content_type='image/jpeg',
 		headers={
 			'Cache-Control': 'public, max-age=300',  # Cache for 5 minutes
