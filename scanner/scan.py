@@ -9,6 +9,7 @@ import os
 import base64
 from pathlib import Path
 from django.conf import settings
+from asgiref.sync import sync_to_async
 
 from scanner.browser_pool import get_context
 from scanner.models import CookieDefinition
@@ -35,7 +36,7 @@ CATEGORY_DISPLAY = {
 }
 
 
-def classify_cookie(name: str, domain: str) -> tuple[str, str, str]:
+def classify_cookie_sync(name: str, domain: str) -> tuple[str, str, str]:
 	"""
 	Classify a cookie using the database first, then fallback to patterns.
 	Returns (classification, category, provider)
@@ -52,6 +53,10 @@ def classify_cookie(name: str, domain: str) -> tuple[str, str, str]:
 			return ('Tracker', 'marketing', '')
 
 	return ('Unclassified', 'other', '')
+
+
+# Async wrapper for use in async scan function
+classify_cookie = sync_to_async(classify_cookie_sync, thread_sensitive=True)
 
 
 def get_base_domain(host):
@@ -154,7 +159,7 @@ async def scan_site(url: str):
 		third_party = []
 
 		for c in cookies:
-			classification, category, provider = classify_cookie(c["name"], c["domain"])
+			classification, category, provider = await classify_cookie(c["name"], c["domain"])
 			is_third_party = get_base_domain(c["domain"]) != get_base_domain(parsed_host)
 			ctype = "Third-party" if is_third_party else "First-party"
 
