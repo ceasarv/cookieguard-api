@@ -6,6 +6,7 @@ import time
 import logging
 import uuid
 import os
+import base64
 from pathlib import Path
 from django.conf import settings
 
@@ -17,9 +18,6 @@ logger = logging.getLogger("scanner")
 # Ensure screenshot directory exists
 SCREENSHOT_DIR = getattr(settings, 'SCREENSHOT_DIR', Path(settings.BASE_DIR) / 'media' / 'screenshots')
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-
-# Skip screenshots in production (ephemeral filesystem)
-SKIP_SCREENSHOTS = os.getenv('DJANGO_ENV') == 'production'
 
 # Known tracking cookie patterns (fallback if not in database)
 TRACKING_PATTERNS = [
@@ -128,20 +126,15 @@ async def scan_site(url: str):
 
 		logger.info("[scan_site] Page loaded and network idle.")
 
-		# Capture screenshot (skip in production - ephemeral filesystem)
-		screenshot_filename = None
-		if not SKIP_SCREENSHOTS:
-			try:
-				screenshot_id = str(uuid.uuid4())[:8]
-				screenshot_filename = f"{screenshot_id}.png"
-				screenshot_path = SCREENSHOT_DIR / screenshot_filename
-				await page.screenshot(path=str(screenshot_path), full_page=False)
-				logger.info("[scan_site] Screenshot saved: %s", screenshot_filename)
-				# Clean up old screenshots, keep only 5 most recent
-				cleanup_old_screenshots(max_keep=5)
-			except Exception as ss_error:
-				logger.warning("[scan_site] Screenshot failed: %s", ss_error)
-				screenshot_filename = None
+		# Capture screenshot as base64 (works across separate containers)
+		screenshot_base64 = None
+		try:
+			screenshot_bytes = await page.screenshot(full_page=False)
+			screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+			logger.info("[scan_site] Screenshot captured (%d bytes)", len(screenshot_bytes))
+		except Exception as ss_error:
+			logger.warning("[scan_site] Screenshot failed: %s", ss_error)
+			screenshot_base64 = None
 
 		html = await page.content()
 
@@ -210,7 +203,7 @@ async def scan_site(url: str):
 			"complianceScore": score,
 			"issues": issues,
 			"duration": round(time.perf_counter() - start_time, 2),
-			"screenshot": screenshot_filename,  # Filename only, frontend adds base URL
+			"screenshot": screenshot_base64,  # Base64 encoded PNG
 		}
 
 		logger.info("[scan_site] Scan complete.")
