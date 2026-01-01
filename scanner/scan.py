@@ -126,12 +126,17 @@ async def scan_site(url: str):
 
 		logger.info("[scan_site] Page loaded and network idle.")
 
-		# Capture screenshot as base64 (works across separate containers)
+		# Capture screenshot as base64 (JPEG, 70% quality, ~50-100KB)
 		screenshot_base64 = None
 		try:
-			screenshot_bytes = await page.screenshot(full_page=False)
+			screenshot_bytes = await page.screenshot(
+				full_page=False,
+				type='jpeg',
+				quality=70,
+				scale='css',  # Use CSS pixels, not device pixels
+			)
 			screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
-			logger.info("[scan_site] Screenshot captured (%d bytes)", len(screenshot_bytes))
+			logger.info("[scan_site] Screenshot captured (%d KB)", len(screenshot_bytes) // 1024)
 		except Exception as ss_error:
 			logger.warning("[scan_site] Screenshot failed: %s", ss_error)
 			screenshot_base64 = None
