@@ -37,8 +37,8 @@ BROWSER_ARGS = [
     "--js-flags=--max-old-space-size=128",  # Limit JS heap
 ]
 
-# Lighter viewport for cookie scanning (don't need full resolution)
-VIEWPORT = {"width": 1024, "height": 576}
+# Wider viewport to capture more of the page for screenshots
+VIEWPORT = {"width": 1440, "height": 900}
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -146,9 +146,9 @@ async def get_context():
         bypass_csp=True,
     )
 
-    # Block images, fonts, media, and other heavy resources
+    # Block fonts, media, and other heavy resources (but allow images for screenshots)
     await context.route(
-        "**/*.{png,jpg,jpeg,gif,svg,webp,ico,woff,woff2,ttf,eot,mp4,webm,mp3,wav,ogg,avi,mov,pdf}",
+        "**/*.{woff,woff2,ttf,eot,mp4,webm,mp3,wav,ogg,avi,mov,pdf}",
         lambda route: route.abort()
     )
 
