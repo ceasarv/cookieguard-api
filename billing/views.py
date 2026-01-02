@@ -240,7 +240,11 @@ def stripe_webhook(request):
 
 			items = subscription.get("items", {}).get("data", [])
 			if items and items[0].get("price", {}).get("lookup_key"):
-				profile.price_lookup_key = items[0]["price"]["lookup_key"]
+				lookup_key = items[0]["price"]["lookup_key"]
+				profile.price_lookup_key = lookup_key
+				# Set plan_tier based on lookup key
+				from billing.plans import get_tier_from_lookup_key
+				profile.plan_tier = get_tier_from_lookup_key(lookup_key)
 			if subscription.get("trial_end"):
 				profile.trial_used = True
 
@@ -693,7 +697,6 @@ def pricing_page(request):
 			"tier": tier,
 			"name": config["name"],
 			"price_monthly": config["price_monthly"],
-			"price_yearly": config["price_monthly"] * 10 if config["price_monthly"] > 0 else 0,  # 2 months free
 			"stripe_lookup_key": config["stripe_lookup_key"],
 			"is_popular": tier == "pro",  # Highlight Pro as most popular
 			"features": features_list,
@@ -703,6 +706,4 @@ def pricing_page(request):
 	return Response({
 		"plans": plans,
 		"currency": "usd",
-		"billing_periods": ["monthly", "yearly"],
-		"yearly_discount_text": "2 months free",
 	})

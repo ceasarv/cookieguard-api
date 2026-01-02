@@ -15,7 +15,7 @@ class BillingProfile(models.Model):
 	class PlanTier(models.TextChoices):
 		FREE = 'free', 'Free'
 		PRO = 'pro', 'Pro'
-		AGENCY = 'agency', 'Agency'
+		MULTI_SITE = 'multi_site', 'Multi-Site'
 
 	user = models.OneToOneField(
 		settings.AUTH_USER_MODEL,
@@ -82,8 +82,16 @@ class BillingProfile(models.Model):
 		"""
 		Get the effective plan tier based on subscription status.
 		Returns 'free' if subscription is not active.
+		Derives tier from price_lookup_key if plan_tier isn't set.
 		"""
 		if self.subscription_status in {self.SubStatus.ACTIVE, self.SubStatus.TRIALING}:
+			# If plan_tier is set, use it; otherwise derive from lookup key
+			if self.plan_tier and self.plan_tier != self.PlanTier.FREE:
+				return self.plan_tier
+			# Derive from Stripe lookup key
+			if self.price_lookup_key:
+				from billing.plans import get_tier_from_lookup_key
+				return get_tier_from_lookup_key(self.price_lookup_key)
 			return self.plan_tier
 		return self.PlanTier.FREE
 

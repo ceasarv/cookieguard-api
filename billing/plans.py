@@ -6,15 +6,15 @@ Limits can be overridden via environment variables.
 """
 import os
 
-PLAN_TIERS = ("free", "pro", "agency")
+PLAN_TIERS = ("free", "pro", "multi_site")
 
 # Environment-configurable limits with sensible defaults
-FREE_PAGEVIEWS = int(os.getenv("FREE_PAGEVIEWS", 1000))
+FREE_PAGEVIEWS = int(os.getenv("FREE_PAGEVIEWS", 250))
 FREE_DOMAINS = int(os.getenv("FREE_DOMAINS", 1))
 PRO_PAGEVIEWS = int(os.getenv("PRO_PAGEVIEWS", 10000))
 PRO_DOMAINS = int(os.getenv("PRO_DOMAINS", 3))
-AGENCY_PAGEVIEWS = int(os.getenv("AGENCY_PAGEVIEWS", 50000))
-AGENCY_DOMAINS = int(os.getenv("AGENCY_DOMAINS", 10))
+MULTI_SITE_PAGEVIEWS = int(os.getenv("MULTI_SITE_PAGEVIEWS", 50000))
+MULTI_SITE_DOMAINS = int(os.getenv("MULTI_SITE_DOMAINS", 10))
 PAGEVIEW_GRACE_PERCENT = float(os.getenv("PAGEVIEW_GRACE_PERCENT", 15)) / 100  # Convert 15 -> 0.15
 
 PLAN_LIMITS = {
@@ -54,12 +54,12 @@ PLAN_LIMITS = {
         "team_members": 0,
         "priority_support": False,
     },
-    "agency": {
-        "name": "Agency",
+    "multi_site": {
+        "name": "Multi-Site",
         "price_monthly": 30,
-        "stripe_lookup_key": "cg_agency_monthly",
-        "domains": AGENCY_DOMAINS,
-        "pageviews_per_month": AGENCY_PAGEVIEWS,
+        "stripe_lookup_key": "cg_multi_site_monthly",
+        "domains": MULTI_SITE_DOMAINS,
+        "pageviews_per_month": MULTI_SITE_PAGEVIEWS,
         "pageviews_grace_percent": PAGEVIEW_GRACE_PERCENT,
         "auto_scan": "daily",
         "banner_customization": "full",

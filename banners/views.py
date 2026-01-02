@@ -126,7 +126,7 @@ class BannerDetailView(generics.RetrieveUpdateDestroyAPIView):
 			# Block if trying to hide branding
 			if self.request.data.get("show_cookieguard_logo") is False:
 				raise ValidationError({
-					"detail": "Removing CookieGuard branding requires a Pro or Agency plan.",
+					"detail": "Removing CookieGuard branding requires a Pro or Multi-Site plan.",
 					"code": "premium_feature_required",
 				})
 
