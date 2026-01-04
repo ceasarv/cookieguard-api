@@ -174,6 +174,7 @@ def me(request):
 @permission_classes([AllowAny])
 def register(request):
 	from .serializers import RegisterSerializer
+	from billing.tasks import send_welcome_email
 	import os, resend
 	serializer = RegisterSerializer(data=request.data)
 	if not serializer.is_valid():
@@ -181,10 +182,13 @@ def register(request):
 
 	user = serializer.save()
 
+	# 📨 Send welcome email to user (async)
+	send_welcome_email.delay(str(user.id))
+
 	# 📨 Notify admin
 	try:
 		resend.api_key = os.environ.get("RESEND_API_KEY")
-		sender_email = "support@resend.dev"
+		sender_email = os.environ.get("EMAIL_SENDER", "CookieGuard <noreply@cookieguard.app>")
 		receiver_email = os.environ.get("EMAIL_RECEIVER")
 
 		subject = f"[New Signup] {user.email}"
@@ -202,9 +206,9 @@ def register(request):
 			"html": html_body,
 		})
 
-		print(f"[Signup Email Sent ✅] Notified for {user.email}")
+		log.info(f"[Signup] Admin notified for {user.email}")
 	except Exception as email_err:
-		print("[Signup Email Error ❌]", email_err)
+		log.error(f"[Signup Email Error] {email_err}")
 
 	return Response({
 		"message": "User created successfully",
@@ -306,21 +310,27 @@ def google_login(request):
 
 	user, created = User.objects.get_or_create(email=email, defaults=defaults)
 
-	# 📨 Notify admin if a brand-new Google account was created
+	# 📨 Send emails if a brand-new Google account was created
 	if created:
+		from billing.tasks import send_welcome_email
+		import os, resend
+
+		# Send welcome email to user (async)
+		send_welcome_email.delay(str(user.id))
+
+		# Notify admin
 		try:
-			import os, resend
 			resend.api_key = os.environ.get("RESEND_API_KEY")
-			sender_email = "support@resend.dev"
+			sender_email = os.environ.get("EMAIL_SENDER", "CookieGuard <noreply@cookieguard.app>")
 			receiver_email = os.environ.get("EMAIL_RECEIVER")
 
 			subject = f"[New Google Signup] {user.email}"
 			html_body = f"""
-	            <h2>🎉 New Google Signup</h2>
-	            <p><strong>Email:</strong> {user.email}</p>
-	            <p><strong>Name:</strong> {getattr(user, 'name', '')}</p>
-	            <p><strong>User ID:</strong> {user.id}</p>
-	        """
+				<h2>🎉 New Google Signup</h2>
+				<p><strong>Email:</strong> {user.email}</p>
+				<p><strong>Name:</strong> {getattr(user, 'name', '')}</p>
+				<p><strong>User ID:</strong> {user.id}</p>
+			"""
 
 			resend.Emails.send({
 				"from": sender_email,
@@ -329,9 +339,9 @@ def google_login(request):
 				"html": html_body,
 			})
 
-			print(f"[Google Signup Email Sent ✅] Notified for {user.email}")
+			log.info(f"[Google Signup] Admin notified for {user.email}")
 		except Exception as email_err:
-			print("[Google Signup Email Error ❌]", email_err)
+			log.error(f"[Google Signup Email Error] {email_err}")
 
 	# Make sure federated accounts don't accidentally have a usable local password
 	from django.contrib.auth.hashers import identify_hasher

@@ -134,6 +134,79 @@ def generate_user_report(user, month_start, month_end):
 
 
 @shared_task
+def send_welcome_email(user_id):
+	"""
+	Send welcome email to new users after registration.
+	Called asynchronously via Celery after user creation.
+	"""
+	from django.contrib.auth import get_user_model
+	User = get_user_model()
+
+	try:
+		user = User.objects.get(id=user_id)
+
+		resend.api_key = os.environ.get("RESEND_API_KEY")
+		sender_email = os.environ.get("EMAIL_SENDER", "CookieGuard <noreply@cookieguard.app>")
+
+		subject = "Welcome to CookieGuard!"
+		html_body = f"""
+		<div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+			<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+				<h1 style="color: white; margin: 0; font-size: 28px;">Welcome to CookieGuard!</h1>
+			</div>
+			<div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+				<p style="color: #374151; font-size: 16px; line-height: 1.6; margin-top: 0;">
+					Thanks for signing up! You're now ready to make your website GDPR and CCPA compliant with our easy-to-use cookie consent solution.
+				</p>
+
+				<div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 24px 0;">
+					<h3 style="margin-top: 0; color: #111827;">Get started in 3 steps:</h3>
+					<ol style="color: #374151; padding-left: 20px; margin-bottom: 0;">
+						<li style="margin-bottom: 12px;"><strong>Add your website</strong> - Enter your domain to scan for cookies</li>
+						<li style="margin-bottom: 12px;"><strong>Customize your banner</strong> - Match it to your brand</li>
+						<li style="margin-bottom: 0;"><strong>Install the script</strong> - One line of code and you're compliant</li>
+					</ol>
+				</div>
+
+				<div style="text-align: center; margin: 24px 0;">
+					<a href="https://app.cookieguard.app/dashboard"
+					   style="display: inline-block; background: #14b8a6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+						Go to Dashboard
+					</a>
+				</div>
+
+				<div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 16px; margin-top: 24px;">
+					<p style="color: #0f766e; margin: 0; font-size: 14px;">
+						<strong>Free plan includes:</strong> 250 pageviews/month, 1 domain, full banner customization, and cookie scanning.
+					</p>
+				</div>
+
+				<p style="color: #9ca3af; font-size: 14px; margin-top: 30px; margin-bottom: 0;">
+					Questions? Just reply to this email - we're here to help!
+				</p>
+			</div>
+		</div>
+		"""
+
+		resend.Emails.send({
+			"from": sender_email,
+			"to": user.email,
+			"subject": subject,
+			"html": html_body,
+		})
+
+		log.info(f"[Email Sent] Welcome email to {user.email}")
+		return {"to": user.email, "type": "welcome"}
+
+	except User.DoesNotExist:
+		log.error(f"User {user_id} not found for welcome email")
+		return None
+	except Exception as e:
+		log.error(f"[Email Error] Failed to send welcome email to user {user_id}: {e}")
+		return None
+
+
+@shared_task
 def send_pageview_limit_warning(user_id, current_pageviews, limit, threshold_type="reached"):
 	"""
 	Send warning email when user approaches or reaches their pageview limit.
@@ -142,13 +215,19 @@ def send_pageview_limit_warning(user_id, current_pageviews, limit, threshold_typ
 		user_id: User's ID
 		current_pageviews: Current pageview count
 		limit: Base pageview limit for the plan
-		threshold_type: One of "approaching" (80%), "reached" (100%), or "blocked" (115%)
+		threshold_type: One of "early_warning" (70%), "approaching" (80%), "reached" (100%), or "blocked" (115%)
 	"""
 	from django.contrib.auth import get_user_model
 	from billing.guards import get_user_plan
 	User = get_user_model()
 
 	messages = {
+		"early_warning": {
+			"subject": "You've used 70% of your pageviews",
+			"emoji": "📊",
+			"color": "#3b82f6",
+			"message": "You've used 70% of your monthly pageview limit on the Free plan. Upgrade to Pro for 10,000 pageviews per month and never worry about limits again.",
+		},
 		"approaching": {
 			"subject": "You're approaching your pageview limit",
 			"emoji": "⚠️",

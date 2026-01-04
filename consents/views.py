@@ -200,6 +200,7 @@ def track_pageview(request):
 	Pageviews are tracked per account (shared across all domains).
 
 	Sends warning emails at:
+	- 70%: "Early warning" (Free plan only)
 	- 80%: "Approaching your limit"
 	- 100%: "Limit reached, grace period active"
 	- 115%: "Hard limit reached, views blocked"
@@ -243,16 +244,27 @@ def track_pageview(request):
 	effective_limit = get_effective_pageview_limit(user)
 
 	# Calculate thresholds
+	threshold_70 = int(base_limit * 0.70)
 	threshold_80 = int(base_limit * 0.80)
 	threshold_100 = base_limit
 	threshold_hard = effective_limit  # 115% (base + grace)
 
+	over_70 = usage.pageviews >= threshold_70
 	over_80 = usage.pageviews >= threshold_80
 	over_100 = usage.pageviews >= threshold_100
 	over_hard = usage.pageviews >= threshold_hard
 
+	# Get user's plan for 70% threshold (free plan only)
+	user_plan = get_user_plan(user)
+
 	# Send warning emails at each threshold (first time only)
 	update_fields = []
+
+	# 70% early warning - only for free plan users
+	if user_plan == "free" and over_70 and not usage.warning_70_sent:
+		usage.warning_70_sent = True
+		update_fields.append("warning_70_sent")
+		send_pageview_limit_warning.delay(user.id, usage.pageviews, base_limit, "early_warning")
 
 	if over_80 and not usage.warning_80_sent:
 		usage.warning_80_sent = True

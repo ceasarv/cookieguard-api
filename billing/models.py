@@ -111,6 +111,7 @@ class UsageRecord(models.Model):
 	scans_used = models.PositiveIntegerField(default=0)
 
 	# Threshold warning flags to avoid duplicate emails
+	warning_70_sent = models.BooleanField(default=False)  # Free plan early warning
 	warning_80_sent = models.BooleanField(default=False)
 	warning_100_sent = models.BooleanField(default=False)
 	warning_hard_limit_sent = models.BooleanField(default=False)
