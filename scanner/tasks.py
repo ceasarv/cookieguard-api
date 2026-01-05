@@ -63,7 +63,7 @@ def run_scan_task(
 	# Save result to database if requested
 	if save_result and not result.get('error'):
 		try:
-			from scanner.models import ScanResult
+			from scanner.models import ScanResult, Cookie
 			from domains.models import Domain
 
 			domain = None
@@ -88,6 +88,18 @@ def run_scan_task(
 				duration=result.get('duration', 0),
 				issues=result.get('issues', []),
 			)
+
+			# Create Cookie objects from scan results
+			for cookie_data in result.get('cookies', []):
+				Cookie.objects.create(
+					scan=scan_result,
+					name=cookie_data.get('name', ''),
+					domain=cookie_data.get('domain', ''),
+					path=cookie_data.get('path', '/'),
+					expires=cookie_data.get('expires', 'Session'),
+					type=cookie_data.get('type', 'First-party'),
+					classification=cookie_data.get('classification', 'Unclassified'),
+				)
 
 			if domain:
 				domain.last_scan_at = timezone.now()

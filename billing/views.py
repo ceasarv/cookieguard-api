@@ -67,7 +67,7 @@ def _get_urls_or_503():
 
 # --- API: Create Checkout Session -------------------------------------------
 @extend_schema(
-	request={"application/json": {"type": "object", "properties": {"plan": {"type": "string", "enum": ["starter", "pro"]}}, "required": ["plan"]}},
+	request={"application/json": {"type": "object", "properties": {"plan": {"type": "string", "enum": ["pro", "multi_site"]}}, "required": ["plan"]}},
 	responses={200: {"type": "object", "properties": {"url": {"type": "string"}}}},
 	description="Create a Stripe Checkout session for subscription",
 	tags=["Billing"]
@@ -75,23 +75,23 @@ def _get_urls_or_503():
 @api_view(["POST"])
 def create_checkout_session(request):
 	"""
-	Body: { "plan": "starter" | "pro" }
+	Body: { "plan": "pro" | "multi_site" }
 	Creates a Stripe Checkout Session for a subscription (optional trial).
 	"""
 	plan = (request.data.get("plan") or "").strip().lower()
-	if plan not in ("starter", "pro"):
+	if plan not in ("pro", "multi_site"):
 		return Response({"error": "Invalid plan"}, status=400)
 
 	# Resolve price by plan
-	if plan == "starter":
-		price_selector = (
-				getattr(settings, "STRIPE_PRICE_STARTER", None)
-				or getattr(settings, "STRIPE_LOOKUP_STARTER", None)
-		)
-	else:
+	if plan == "pro":
 		price_selector = (
 				getattr(settings, "STRIPE_PRICE_PRO", None)
 				or getattr(settings, "STRIPE_LOOKUP_PRO", None)
+		)
+	else:
+		price_selector = (
+				getattr(settings, "STRIPE_PRICE_MULTI_SITE", None)
+				or getattr(settings, "STRIPE_LOOKUP_MULTI_SITE", None)
 		)
 
 	if not price_selector:
@@ -239,19 +239,28 @@ def stripe_webhook(request):
 			profile.cancel_at_period_end = bool(subscription.get("cancel_at_period_end", False))
 
 			items = subscription.get("items", {}).get("data", [])
+			from billing.plans import get_tier_from_lookup_key
+
+			# Try to get plan from lookup_key first
 			if items and items[0].get("price", {}).get("lookup_key"):
 				lookup_key = items[0]["price"]["lookup_key"]
 				profile.price_lookup_key = lookup_key
-				# Set plan_tier based on lookup key
-				from billing.plans import get_tier_from_lookup_key
 				profile.plan_tier = get_tier_from_lookup_key(lookup_key)
+			else:
+				# Fallback: get plan from subscription metadata (set during checkout)
+				metadata = subscription.get("metadata", {})
+				plan_from_metadata = metadata.get("plan")
+				if plan_from_metadata:
+					profile.plan_tier = plan_from_metadata
+					log.info("📋 Set plan_tier from metadata: %s", plan_from_metadata)
+
 			if subscription.get("trial_end"):
 				profile.trial_used = True
 
 			profile.save()
 			log.info("✅ Saved BillingProfile for %s", customer_id)
 
-			# Toggle banners
+			# Handle downgrade to free tier - reset paid-only banner settings
 			from banners.models import Banner
 			subscription_status = subscription.get("status", "").lower()
 			end_ts = subscription.get("current_period_end") or subscription.get("trial_end")
@@ -261,11 +270,31 @@ def stripe_webhook(request):
 
 			user = profile.user
 			if subscription_status in ("canceled", "unpaid", "inactive") and not has_time_left:
-				Banner.objects.filter(domains__user=user, is_active=True).update(is_active=False)
-				log.info("⏸️ Paused banners for user %s", user.email)
-			elif subscription_status in ("active", "trialing") and has_time_left:
-				Banner.objects.filter(domains__user=user, is_active=False).update(is_active=True)
-				log.info("▶️ Re-enabled banners for user %s", user.email)
+				# Reset banners to free-tier defaults (keep them active, but remove paid features)
+				user_banners = Banner.objects.filter(domains__user=user)
+				user_banners.update(
+					# Re-enable branding (paid feature: remove_branding)
+					show_cookieguard_logo=True,
+					# Reset to basic customization defaults
+					type="bar",
+					position="bottom",
+					# Reset overlay (paid feature)
+					overlay_enabled=False,
+					# Reset to default colors
+					theme="light",
+					background_color="#ffffff",
+					text_color="#111827",
+					accept_bg_color="#2563eb",
+					accept_text_color="#ffffff",
+					reject_bg_color="#ffffff",
+					reject_text_color="#111827",
+					prefs_bg_color="#ffffff",
+					prefs_text_color="#111827",
+					# Reset shadow to default
+					shadow="md",
+					shadow_custom=None,
+				)
+				log.info("🔄 Reset %d banners to free-tier defaults for user %s", user_banners.count(), user.email)
 
 		# -- Event routing --
 		if type_ == "checkout.session.completed":

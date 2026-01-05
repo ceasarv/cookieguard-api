@@ -214,21 +214,54 @@ def domain_cookies(request, domain_id):
 
 	cookies = latest_scan.cookies.all()
 	cookies_data = []
-	for cookie in cookies:
-		cookies_data.append({
-			"id": cookie.id,
-			"name": cookie.name,
-			"domain": cookie.domain,
-			"path": cookie.path,
-			"expires": cookie.expires,
-			"type": cookie.type,
-			"category": cookie.get_effective_category(),
-			"classification": cookie.classification,
-			"user_category": cookie.user_category,
-			"user_description": cookie.user_description,
-			"has_definition": cookie.definition is not None,
-			"definition_confidence": cookie.definition.classification_confidence if cookie.definition else 0,
-		})
+
+	if cookies.exists():
+		# Use Cookie model objects
+		for cookie in cookies:
+			cookies_data.append({
+				"id": cookie.id,
+				"name": cookie.name,
+				"domain": cookie.domain,
+				"path": cookie.path,
+				"expires": cookie.expires,
+				"type": cookie.type,
+				"category": cookie.get_effective_category(),
+				"classification": cookie.classification,
+				"user_category": cookie.user_category,
+				"user_description": cookie.user_description,
+				"has_definition": cookie.definition is not None,
+				"definition_confidence": cookie.definition.classification_confidence if cookie.definition else 0,
+			})
+	else:
+		# Fallback: extract from JSON result (for older scans without Cookie objects)
+		# Also create Cookie objects for future use
+		result_data = latest_scan.result or {}
+		raw_cookies = result_data.get('cookies', [])
+		for i, cookie_data in enumerate(raw_cookies):
+			# Create Cookie object
+			cookie = Cookie.objects.create(
+				scan=latest_scan,
+				name=cookie_data.get('name', ''),
+				domain=cookie_data.get('domain', ''),
+				path=cookie_data.get('path', '/'),
+				expires=cookie_data.get('expires', 'Session'),
+				type=cookie_data.get('type', 'First-party'),
+				classification=cookie_data.get('classification', 'Unclassified'),
+			)
+			cookies_data.append({
+				"id": cookie.id,
+				"name": cookie.name,
+				"domain": cookie.domain,
+				"path": cookie.path,
+				"expires": cookie.expires,
+				"type": cookie.type,
+				"category": cookie.get_effective_category(),
+				"classification": cookie.classification,
+				"user_category": cookie.user_category,
+				"user_description": cookie.user_description,
+				"has_definition": cookie.definition is not None,
+				"definition_confidence": cookie.definition.classification_confidence if cookie.definition else 0,
+			})
 
 	return Response({
 		"cookies": cookies_data,

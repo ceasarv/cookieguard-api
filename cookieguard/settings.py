@@ -287,19 +287,21 @@ CELERY_TASK_SOFT_TIME_LIMIT = 150  # Soft limit to allow cleanup
 # --- Stripe base ---
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
-# Your existing envs
-ESSENTIAL_PRICE_ID = os.getenv("ESSENTIAL_PRICE_ID")
-ESSENTIAL_LOOKUP_ID = os.getenv("ESSENTIAL_LOOKUP_ID")
-ULTIMATE_PRICE_ID = os.getenv("ULTIMATE_PRICE_ID")
-ULTIMATE_LOOKUP_ID = os.getenv("ULTIMATE_LOOKUP_ID")
+# Pro plan (Essential tier)
+PRO_PRICE_ID = os.getenv("PRO_PRICE_ID") or os.getenv("ESSENTIAL_PRICE_ID")
+PRO_LOOKUP_ID = os.getenv("PRO_LOOKUP_ID") or os.getenv("ESSENTIAL_LOOKUP_ID")
+
+# Multi-Site plan (Ultimate tier)
+MULTI_SITE_PRICE_ID = os.getenv("MULTI_SITE_PRICE_ID") or os.getenv("ULTIMATE_PRICE_ID")
+MULTI_SITE_LOOKUP_ID = os.getenv("MULTI_SITE_LOOKUP_ID") or os.getenv("ULTIMATE_LOOKUP_ID")
 
 # Plan selectors (lookup keys)
-STRIPE_LOOKUP_STARTER = os.getenv("STRIPE_LOOKUP_STARTER") or ESSENTIAL_LOOKUP_ID or "cg_essential_monthly"
-STRIPE_LOOKUP_PRO = os.getenv("STRIPE_LOOKUP_PRO") or ULTIMATE_LOOKUP_ID or "cg_ultimate_monthly"
+STRIPE_LOOKUP_PRO = os.getenv("STRIPE_LOOKUP_PRO") or PRO_LOOKUP_ID or "cg_pro_monthly"
+STRIPE_LOOKUP_MULTI_SITE = os.getenv("STRIPE_LOOKUP_MULTI_SITE") or MULTI_SITE_LOOKUP_ID or "cg_multi_site_monthly"
 
 # Optional: direct price IDs (lets the app skip lookup entirely)
-STRIPE_PRICE_STARTER = os.getenv("STRIPE_PRICE_STARTER") or ESSENTIAL_PRICE_ID
-STRIPE_PRICE_PRO = os.getenv("STRIPE_PRICE_PRO") or ULTIMATE_PRICE_ID
+STRIPE_PRICE_PRO = os.getenv("STRIPE_PRICE_PRO") or PRO_PRICE_ID
+STRIPE_PRICE_MULTI_SITE = os.getenv("STRIPE_PRICE_MULTI_SITE") or MULTI_SITE_PRICE_ID
 
 # Frontend return URLs
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")

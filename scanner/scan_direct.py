@@ -1,9 +1,9 @@
-# scanner/scan_sync.py
+# scanner/scan_direct.py
 """
-Synchronous scanner for Celery workers.
-Uses sync_playwright which works better with Celery on Windows.
+Direct scanner that launches a fresh browser per scan.
+No browser pool - designed for subprocess isolation.
 """
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from urllib.parse import urlparse
 from tldextract import extract
 import traceback
@@ -13,7 +13,6 @@ import uuid
 import redis
 from django.conf import settings
 
-from scanner.browser_pool_sync import get_context
 from scanner.models import CookieDefinition
 
 logger = logging.getLogger("scanner")
@@ -22,13 +21,36 @@ logger = logging.getLogger("scanner")
 redis_client = redis.from_url(settings.CELERY_BROKER_URL)
 SCREENSHOT_TTL = 600  # 10 minutes
 
+# Browser args
+BROWSER_ARGS = [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-setuid-sandbox",
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-translate",
+    "--disable-default-apps",
+    "--no-first-run",
+    "--disable-blink-features=AutomationControlled",
+]
+
+VIEWPORT = {"width": 1440, "height": 900}
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
 # Known tracking cookie patterns (fallback if not in database)
 TRACKING_PATTERNS = [
     "_ga", "_gid", "_fbp", "ajs_", "__hstc", "intercom", "_gcl_", "hubspot", "clarity",
     "_uetsid", "_uetvid", "_ttp", "TDID", "IDE", "uuid2", "demdex", "criteo", "adnxs"
 ]
 
-# Category display names
 CATEGORY_DISPLAY = {
     'necessary': 'Necessary',
     'functional': 'Functional',
@@ -43,22 +65,19 @@ def save_screenshot_to_redis(screenshot_bytes: bytes) -> str:
     screenshot_id = str(uuid.uuid4())
     key = f"screenshot:{screenshot_id}"
     redis_client.setex(key, SCREENSHOT_TTL, screenshot_bytes)
-    logger.info("[screenshot] Saved to Redis: %s (%d KB)", screenshot_id, len(screenshot_bytes) // 1024)
     return screenshot_id
 
 
 def classify_cookie(name: str, domain: str) -> tuple[str, str, str]:
-    """
-    Classify a cookie using the database first, then fallback to patterns.
-    Returns (classification, category, provider)
-    """
-    # Try database lookup
-    definition = CookieDefinition.find_match(name, domain)
-    if definition:
-        category = CATEGORY_DISPLAY.get(definition.category, 'Unclassified')
-        return (category, definition.category, definition.provider or '')
+    """Classify a cookie using DB first, then fallback to patterns."""
+    try:
+        definition = CookieDefinition.find_match(name, domain)
+        if definition:
+            category = CATEGORY_DISPLAY.get(definition.category, 'Unclassified')
+            return (category, definition.category, definition.provider or '')
+    except Exception:
+        pass
 
-    # Fallback to pattern matching
     for pattern in TRACKING_PATTERNS:
         if pattern in name.lower():
             return ('Tracker', 'marketing', '')
@@ -69,7 +88,6 @@ def classify_cookie(name: str, domain: str) -> tuple[str, str, str]:
 def get_base_domain(host):
     if not host:
         return ""
-    # Strip leading dots from cookie domains (e.g., ".example.com" -> "example.com")
     host = host.lstrip(".")
     if not host:
         return ""
@@ -77,41 +95,52 @@ def get_base_domain(host):
     return f"{parts.domain}.{parts.suffix}" if parts.suffix else parts.domain
 
 
-def scan_site_sync(url: str, progress_callback=None):
-    """Synchronous single-page scan."""
-    logger.info("[scan_site_sync] Starting scan for: %s", url)
-
+def scan_site_direct(url: str) -> dict:
+    """
+    Direct scan that launches a fresh browser.
+    No singleton, no pool - just a clean scan.
+    """
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
 
     parsed_host = urlparse(url).hostname or ""
-    result = {}
     start_time = time.perf_counter()
 
-    def report_progress(stage, pct, msg, details=None):
-        if progress_callback:
-            try:
-                progress_callback(stage, pct, msg, details or {})
-            except Exception:
-                pass
-
-    report_progress('init', 5, 'Initializing browser...')
-
-    context = get_context()
+    playwright = None
+    browser = None
+    context = None
 
     try:
-        page = context.new_page()
-        report_progress('scanning', 10, 'Loading page...')
+        # Launch fresh browser
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=BROWSER_ARGS,
+        )
 
-        logger.info("[scan_site_sync] Injecting evasion script...")
+        context = browser.new_context(
+            user_agent=USER_AGENT,
+            viewport=VIEWPORT,
+            bypass_csp=True,
+        )
+
+        # Block heavy resources
+        context.route(
+            "**/*.{woff,woff2,ttf,eot,mp4,webm,mp3,wav,ogg,avi,mov,pdf}",
+            lambda route: route.abort()
+        )
+
+        page = context.new_page()
+
+        # Evasion
         page.add_init_script(
             """Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"""
         )
 
+        # Navigate with retry
         max_retries = 2
         for attempt in range(max_retries):
             try:
-                logger.info("[scan_site_sync] Navigating to %s (Attempt %d)...", url, attempt + 1)
                 page.goto(url, timeout=30000, wait_until="domcontentloaded")
                 page.wait_for_load_state("networkidle", timeout=20000)
                 break
@@ -120,11 +149,7 @@ def scan_site_sync(url: str, progress_callback=None):
                     raise
                 page.wait_for_timeout(1500)
 
-        report_progress('analyzing', 70, 'Analyzing cookies...')
-
-        logger.info("[scan_site_sync] Page loaded and network idle.")
-
-        # Capture screenshot and save to Redis
+        # Screenshot
         screenshot_url = None
         try:
             screenshot_bytes = page.screenshot(
@@ -135,16 +160,11 @@ def scan_site_sync(url: str, progress_callback=None):
             )
             screenshot_id = save_screenshot_to_redis(screenshot_bytes)
             screenshot_url = f"/api/screenshots/{screenshot_id}"
-            logger.info("[scan_site_sync] Screenshot saved to Redis (%d KB)", len(screenshot_bytes) // 1024)
-        except Exception as ss_error:
-            logger.warning("[scan_site_sync] Screenshot failed: %s", ss_error)
-            screenshot_url = None
+        except Exception:
+            pass
 
         html = page.content()
-
-        logger.info("[scan_site_sync] Getting cookies...")
-        cookies = page.context.cookies()
-        logger.info("[scan_site_sync] Found %d cookies.", len(cookies))
+        cookies = context.cookies()
 
         cookie_results = []
         tracking_cookies = []
@@ -181,7 +201,6 @@ def scan_site_sync(url: str, progress_callback=None):
             elif classification == "Unclassified":
                 unclassified_cookies.append(cookie_info)
 
-        logger.info("[scan_site_sync] Checking for consent banner...")
         has_consent_banner = any(
             k in html.lower() for k in ["cookie", "consent", "gdpr", "manage preferences"]
         )
@@ -196,9 +215,7 @@ def scan_site_sync(url: str, progress_callback=None):
         if issues:
             score = 70 if "tracking" in str(issues).lower() else 85
 
-        report_progress('complete', 100, 'Scan complete!')
-
-        result = {
+        return {
             "url": url,
             "cookies": cookie_results,
             "firstPartyCount": len(first_party),
@@ -212,24 +229,29 @@ def scan_site_sync(url: str, progress_callback=None):
             "screenshot": screenshot_url,
         }
 
-        logger.info("[scan_site_sync] Scan complete.")
-
     except Exception as e:
         error_message = str(e)
         if "ERR_HTTP2_PROTOCOL_ERROR" in error_message:
             error_message = "Site may be blocking headless browsers or using strict HTTP/2 settings."
         elif "Timeout" in error_message:
             error_message = "Page load timed out. Site may be blocking automated tools or is slow to respond."
-        logger.error("[scan_site_sync][ERROR]: %s", error_message)
         traceback.print_exc()
-        result = {"error": error_message, "duration": round(time.perf_counter() - start_time, 2)}
+        return {"error": error_message, "duration": round(time.perf_counter() - start_time, 2)}
 
     finally:
-        logger.info("[scan_site_sync] Closing context...")
-        try:
-            context.close()
-        except Exception as close_error:
-            logger.debug("[scan_site_sync] Context close error (safe to ignore): %s", close_error)
-
-    logger.info("[scan_site_sync] Returning result.")
-    return result
+        # Clean shutdown
+        if context:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if browser:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        if playwright:
+            try:
+                playwright.stop()
+            except Exception:
+                pass

@@ -35,22 +35,18 @@ logging.disable(logging.CRITICAL)
 import django
 django.setup()
 
-import asyncio
-from scanner.scan import scan_site
+# Direct scan without browser pool - more reliable in subprocess
+from scanner.scan_direct import scan_site_direct
 
-async def main():
-    try:
-        result = await scan_site("{safe_url}")
-        # Use special markers to reliably find the JSON output
-        print("__SCAN_RESULT_START__")
-        print(json.dumps(result))
-        print("__SCAN_RESULT_END__")
-    except Exception as e:
-        print("__SCAN_RESULT_START__")
-        print(json.dumps({{"error": str(e)}}))
-        print("__SCAN_RESULT_END__")
-
-asyncio.run(main())
+try:
+    result = scan_site_direct("{safe_url}")
+    print("__SCAN_RESULT_START__")
+    print(json.dumps(result))
+    print("__SCAN_RESULT_END__")
+except Exception as e:
+    print("__SCAN_RESULT_START__")
+    print(json.dumps({{"error": str(e)}}))
+    print("__SCAN_RESULT_END__")
 '''
 
     try:
